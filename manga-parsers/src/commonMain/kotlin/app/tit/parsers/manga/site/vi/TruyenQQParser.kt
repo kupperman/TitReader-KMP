@@ -14,31 +14,27 @@ class TruyenQQParser(
     override val name: String = "TruyệnQQ"
     override val domain: String get() = mirrors.first()
 
-    // Multi-domain list with latest active mirrors at the front and fallbacks preserved
     private val mirrors: List<String> = listOf(
-        "https://truyenqqko.com",
-        "https://truyenqqgo.com",
-        "https://foxtruyen2.com",
-        "https://truyenqqto.com",
-        "https://truyenqqvn.com",
-        "https://truyenqq.com"
+        "https://truyenqqko.com"
     )
 
     override suspend fun getList(page: Int, filter: ContentFilter.MangaFilter): List<Content> {
         val path = when (filter.order) {
-            SortOrder.HOT -> if (page == 1) "/truyen-yeu-thich.html" else "/truyen-yeu-thich/trang-$page.html"
-            SortOrder.COMPLETED -> if (page == 1) "/truyen-hoan-thanh.html" else "/truyen-hoan-thanh/trang-$page.html"
-            SortOrder.LATEST -> if (page == 1) "/doc-truyen" else "/doc-truyen?page=$page"
+            SortOrder.HOT -> if (page == 1) "/top-tuan" else "/top-tuan/trang-$page"
+            SortOrder.COMPLETED -> if (page == 1) "/truyen-hoan-thanh" else "/truyen-hoan-thanh/trang-$page"
+            SortOrder.LATEST -> if (page == 1) "/truyen-moi-cap-nhat" else "/truyen-moi-cap-nhat/trang-$page"
         }
 
         val (doc, base) = context.parseHtmlRace(mirrors, path)
         val list = mutableListOf<Content>()
 
-        doc.select(".list_grid li, ul.grid > li, .story-item, .item").forEach { el ->
+        doc.select(".list_grid li, ul.grid > li, .story-item, .item, .book_avatar").forEach { el ->
             val link = el.selectFirst(".book_info h3 a")
                 ?: el.selectFirst(".book_info a")
+                ?: el.selectFirst(".book_name a")
                 ?: el.selectFirst("h3 a, .title a, a.story-title")
                 ?: el.selectFirst(".book_avatar a")
+                ?: el.selectFirst("a[href*='/truyen-tranh/']")
 
             if (link != null) {
                 val title = link.text().trim().ifEmpty { link.attr("title").trim() }
@@ -49,10 +45,10 @@ class TruyenQQParser(
                 val mangaUrl = if (rawHref.startsWith("http")) rawHref else "$base$rawHref"
 
                 val cover = el.selectFirst("img")?.let { img ->
-                    img.attr("data-src")
+                    img.attr("src")
+                        .ifEmpty { img.attr("data-src") }
                         .ifEmpty { img.attr("data-original") }
                         .ifEmpty { img.attr("data-fb") }
-                        .ifEmpty { img.attr("src") }
                 }?.let { raw ->
                     when {
                         raw.startsWith("//") -> "https:$raw"
@@ -62,7 +58,7 @@ class TruyenQQParser(
                     }
                 }
 
-                val latestChap = el.selectFirst(".last_chapter a, .chapter a, .story-chapter a")?.text()?.trim()
+                val latestChap = el.selectFirst(".last_chapter a, .chapter a, .story-chapter a, a[href*='-chap-']")?.text()?.trim()
 
                 if (title.isNotEmpty() && mangaUrl.isNotEmpty() && !mangaUrl.contains("/the-loai/")) {
                     list.add(
@@ -84,15 +80,17 @@ class TruyenQQParser(
     }
 
     override suspend fun search(query: String, page: Int): List<Content> {
-        val path = if (page == 1) "/tim-kiem?q=$query" else "/tim-kiem/trang-$page?q=$query"
+        val path = if (page == 1) "/tim-kiem-nang-cao?q=$query" else "/tim-kiem-nang-cao/trang-$page?q=$query"
         val (doc, base) = context.parseHtmlRace(mirrors, path)
         val list = mutableListOf<Content>()
 
-        doc.select(".list_grid li, ul.grid > li, .story-item, .item").forEach { el ->
+        doc.select(".list_grid li, ul.grid > li, .story-item, .item, .book_avatar").forEach { el ->
             val link = el.selectFirst(".book_info h3 a")
                 ?: el.selectFirst(".book_info a")
+                ?: el.selectFirst(".book_name a")
                 ?: el.selectFirst("h3 a, .title a, a.story-title")
                 ?: el.selectFirst(".book_avatar a")
+                ?: el.selectFirst("a[href*='/truyen-tranh/']")
 
             if (link != null) {
                 val title = link.text().trim().ifEmpty { link.attr("title").trim() }
@@ -103,10 +101,10 @@ class TruyenQQParser(
                 val mangaUrl = if (rawHref.startsWith("http")) rawHref else "$base$rawHref"
 
                 val cover = el.selectFirst("img")?.let { img ->
-                    img.attr("data-src")
+                    img.attr("src")
+                        .ifEmpty { img.attr("data-src") }
                         .ifEmpty { img.attr("data-original") }
                         .ifEmpty { img.attr("data-fb") }
-                        .ifEmpty { img.attr("src") }
                 }?.let { raw ->
                     when {
                         raw.startsWith("//") -> "https:$raw"
@@ -116,9 +114,9 @@ class TruyenQQParser(
                     }
                 }
 
-                val latestChap = el.selectFirst(".last_chapter a, .chapter a")?.text()?.trim()
+                val latestChap = el.selectFirst(".last_chapter a, .chapter a, .story-chapter a, a[href*='-chap-']")?.text()?.trim()
 
-                if (title.isNotEmpty() && mangaUrl.isNotEmpty()) {
+                if (title.isNotEmpty() && mangaUrl.isNotEmpty() && !mangaUrl.contains("/the-loai/")) {
                     list.add(
                         Content(
                             id = mangaUrl,
@@ -141,12 +139,24 @@ class TruyenQQParser(
         val doc = context.parseHtml(mangaUrl)
         val title = doc.selectFirst("h1[itemprop='name'], h1.title, h1")?.text()?.trim() ?: "Không có tiêu đề"
 
-        val cover = doc.selectFirst(".book_avatar img, .detail-info img, .cover img")?.attr("src")
-            ?: doc.selectFirst(".book_avatar img, .detail-info img")?.attr("data-src")
+        val cover = doc.selectFirst(".book_avatar img, .book_info img, img")?.let { img ->
+            img.attr("src")
+                .ifEmpty { img.attr("data-src") }
+                .ifEmpty { img.attr("data-original") }
+                .ifEmpty { img.attr("data-fb") }
+        }?.let { raw ->
+            when {
+                raw.startsWith("//") -> "https:$raw"
+                raw.startsWith("http") -> raw
+                raw.isNotEmpty() && !raw.contains("no_image") -> "$domain$raw"
+                else -> null
+            }
+        }
 
-        val author = doc.selectFirst(".author a, .org a, .author p")?.text()?.trim()
-        val desc = doc.selectFirst(".story-detail-info, .detail-content p, .story-desc")?.text()?.trim()
-        val status = if (doc.selectFirst(".status p, .status")?.text()?.contains("Hoàn", ignoreCase = true) == true) {
+        val author = doc.selectFirst(".author a, .org a, a[href*='tac-gia']")?.text()?.trim()
+        val desc = doc.selectFirst(".story-detail-info, .detail-content, .story-desc, .desc")?.text()?.trim()
+        val statusText = doc.selectFirst(".status, .info-item, .list-info")?.text() ?: ""
+        val status = if (statusText.contains("Hoàn thành", ignoreCase = true)) {
             ContentStatus.COMPLETED
         } else {
             ContentStatus.ONGOING
@@ -154,7 +164,7 @@ class TruyenQQParser(
 
         val chapters = mutableListOf<Chapter>()
         var order = 1
-        doc.select(".works-chapter-list a, .list_chapter a, .chapter_list a, a[href*='-chap-']").forEach { a ->
+        doc.select(".works-chapter-item a, .list_chapter a, .chapter_list a, a[href*='-chap-']").forEach { a ->
             val chTitle = a.text().trim()
             val rawHref = a.attr("href").trim()
             val chUrl = if (rawHref.startsWith("http")) rawHref else "$domain$rawHref"
@@ -179,7 +189,7 @@ class TruyenQQParser(
                 url = mangaUrl,
                 coverUrl = cover,
                 author = author,
-                latestChapter = chapters.lastOrNull()?.title,
+                latestChapter = chapters.firstOrNull()?.title,
                 type = ContentType.MANGA,
                 sourceId = id,
                 sourceName = name
@@ -192,18 +202,34 @@ class TruyenQQParser(
 
     override suspend fun getChapterContent(chapterUrl: String): ChapterContent.ImagePages {
         val doc = context.parseHtml(chapterUrl)
-        val title = doc.selectFirst(".chapter-title, .heading-title, h1")?.text()?.trim() ?: "Nội dung chapter"
-
+        val title = doc.selectFirst(".top .title, h1, .chapter-title")?.text()?.trim() ?: "Nội dung chương"
         val imageUrls = mutableListOf<String>()
-        doc.select(".page-chapter img, .chapter_content img, .story-see-content img, .reading-detail img").forEach { img ->
-            val src = img.attr("data-original").ifEmpty { img.attr("data-src") }.ifEmpty { img.attr("src") }.trim()
-            if (src.isNotEmpty() && src.startsWith("http") && !imageUrls.contains(src)) {
-                imageUrls.add(src)
+
+        doc.select(".chapter_content img, .story-see-content img, .page-chapter img, img.lazy, .chapter_img img, .reading-detail img").forEach { img ->
+            val src = img.attr("data-cdn")
+                .ifEmpty { img.attr("data-original") }
+                .ifEmpty { img.attr("data-src") }
+                .ifEmpty { img.attr("src") }
+                .trim()
+
+            val cleanUrl = when {
+                src.startsWith("//") -> "https:$src"
+                src.startsWith("http") -> src
+                src.isNotEmpty() && !src.contains("no_image") -> "$domain$src"
+                else -> null
+            }
+
+            if (cleanUrl != null && !cleanUrl.contains("loading") && !cleanUrl.contains("logo") && !imageUrls.contains(cleanUrl)) {
+                imageUrls.add(cleanUrl)
             }
         }
 
-        val prevHref = doc.selectFirst("a.btn-prev, a.prev")?.attr("href")?.takeIf { it.isNotEmpty() }
-        val nextHref = doc.selectFirst("a.btn-next, a.next")?.attr("href")?.takeIf { it.isNotEmpty() }
+        val prevHref = doc.selectFirst("a.prev_chap, a.prev, a.btn-prev")?.attr("href")?.takeIf { it.isNotEmpty() }?.let {
+            if (it.startsWith("http")) it else "$domain$it"
+        }
+        val nextHref = doc.selectFirst("a.next_chap, a.next, a.btn-next")?.attr("href")?.takeIf { it.isNotEmpty() }?.let {
+            if (it.startsWith("http")) it else "$domain$it"
+        }
 
         return ChapterContent.ImagePages(
             title = title,

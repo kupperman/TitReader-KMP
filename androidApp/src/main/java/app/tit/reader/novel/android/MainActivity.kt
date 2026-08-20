@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
                 val host = original.url.host.lowercase()
                 val referer = when {
                     host.contains("nettruyen") || host.contains("kptackpte") || host.contains("ccnnts") -> "https://nettruyenx.net/"
-                    host.contains("truyenqq") || host.contains("hinhhinh") -> "https://truyenqqko.com/"
+                    host.contains("truyenqq") || host.contains("hinhhinh") || host.contains("truyenvua") -> "https://truyenqqko.com/"
                     host.contains("foxtruyen") || host.contains("hinhgg") -> "https://foxtruyen2.com/"
                     host.contains("truyendich") -> "https://truyendich.vn/"
                     host.contains("truyenhoan") -> "https://truyenhoan.com/"
