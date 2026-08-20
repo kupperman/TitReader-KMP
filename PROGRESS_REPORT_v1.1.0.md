@@ -40,7 +40,7 @@ Toàn bộ các nguồn dữ liệu đều được kiểm tra thực tế bằn
 | :--- | :--- | :--- | :--- |
 | `OTRUYEN` | **Ổ Truyện** | `https://otruyenapi.com` | Chuẩn REST API JSON, CDN ảnh tốc độ cao, ổn định tuyệt đối |
 | `FOXTRUYEN` | **FoxTruyen** | `https://foxtruyen2.com` | Webtoon & Manhwa phong phú, đã cập nhật live paths & selector |
-| `TRUYENQQ` | **TruyệnQQ** | `https://truyenqqko.com` | Kho Manga/Manhua khổng lồ, bóc tách ảnh sắc nét |
+| `TRUYENQQ` | **TruyệnQQ** | `https://truyenqqko.com (Live paths without .html, advanced search, truyenvua referer)` | Kho Manga/Manhua khổng lồ, bóc tách ảnh sắc nét |
 | `NETTRUYEN` | **NetTruyen** | `https://nettruyenx.net` | Cập nhật nhanh nhất, hỗ trợ tải ảnh qua Referer routing |
 
 ---
