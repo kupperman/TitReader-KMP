@@ -1,47 +1,64 @@
-package app.tit.reader.novel.android
+﻿package app.tit.reader.novel.android
 
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import app.tit.content.core.model.Chapter
 import app.tit.content.core.model.Content
 import app.tit.content.core.model.ContentType
 import app.tit.reader.novel.android.data.AndroidSharedPreferencesDriver
-import app.tit.reader.novel.android.ui.screens.*
-import app.tit.reader.novel.android.ui.theme.AccentOrange
-import app.tit.reader.novel.android.ui.theme.BgCream
-import app.tit.reader.novel.android.ui.theme.MutedGray
-import app.tit.reader.novel.android.ui.theme.TitReaderTheme
+import app.tit.reader.novel.android.ui.screens.DetailsScreen
+import app.tit.reader.novel.android.ui.screens.HistoryScreen
+import app.tit.reader.novel.android.ui.screens.HomeScreen
+import app.tit.reader.novel.android.ui.screens.LibraryScreen
+import app.tit.reader.novel.android.ui.screens.ReaderScreen
+import app.tit.reader.novel.android.ui.screens.SearchScreen
+import app.tit.reader.novel.android.ui.screens.SettingsScreen
+import app.tit.reader.novel.android.ui.theme.*
+import app.tit.reader.novel.android.worker.ChapterUpdateWorker
 import app.tit.shared.repository.AggregatorRepository
 import app.tit.shared.storage.LibraryStorage
 import coil.Coil
 import coil.ImageLoader
 import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 sealed class Screen {
     object Home : Screen()
     object Library : Screen()
     object History : Screen()
+    object Settings : Screen()
     data class Search(val type: ContentType) : Screen()
     data class Details(val content: Content) : Screen()
     data class Reader(val chapter: Chapter, val type: ContentType, val contentMeta: Content? = null) : Screen()
 }
 
 class MainActivity : ComponentActivity() {
+
+    private var isInReaderScreen = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -75,6 +92,23 @@ class MainActivity : ComponentActivity() {
             .build()
         Coil.setImageLoader(imageLoader)
 
+        // Setup Periodic Work for Chapter Auto-Updater (quét ngầm mỗi 6 tiếng)
+        try {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+
+            val workRequest = PeriodicWorkRequestBuilder<ChapterUpdateWorker>(6, TimeUnit.HOURS)
+                .setConstraints(constraints)
+                .build()
+
+            WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+                "titreader_chapter_updater",
+                ExistingPeriodicWorkPolicy.KEEP,
+                workRequest
+            )
+        } catch (_: Exception) {}
+
         val storage = LibraryStorage(AndroidSharedPreferencesDriver(applicationContext))
         val repository = AggregatorRepository(storage = storage)
 
@@ -82,6 +116,10 @@ class MainActivity : ComponentActivity() {
             TitReaderTheme {
                 var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
                 val backStack = remember { mutableStateListOf<Screen>() }
+
+                LaunchedEffect(currentScreen) {
+                    isInReaderScreen = currentScreen is Screen.Reader
+                }
 
                 fun navigateTo(screen: Screen) {
                     backStack.add(currentScreen)
@@ -96,7 +134,10 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                val isTopLevel = currentScreen is Screen.Home || currentScreen is Screen.Library || currentScreen is Screen.History
+                val isTopLevel = currentScreen is Screen.Home || 
+                                 currentScreen is Screen.Library || 
+                                 currentScreen is Screen.History || 
+                                 currentScreen is Screen.Settings
 
                 Scaffold(
                     bottomBar = {
@@ -108,7 +149,8 @@ class MainActivity : ComponentActivity() {
                                 val navItems = listOf(
                                     Triple(Screen.Home, "Khám Phá", Icons.Default.Explore),
                                     Triple(Screen.Library, "Tủ Sách", Icons.Default.Bookmarks),
-                                    Triple(Screen.History, "Lịch Sử", Icons.Default.History)
+                                    Triple(Screen.History, "Lịch Sử", Icons.Default.History),
+                                    Triple(Screen.Settings, "Cài Đặt", Icons.Default.Settings)
                                 )
 
                                 navItems.forEach { (screenDest, label, icon) ->
@@ -131,7 +173,7 @@ class MainActivity : ComponentActivity() {
                                         label = {
                                             Text(
                                                 text = label,
-                                                fontSize = 12.sp,
+                                                fontSize = 11.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                                 color = if (isSelected) AccentOrange else MutedGray
                                             )
@@ -166,6 +208,11 @@ class MainActivity : ComponentActivity() {
                                     onContinueReadClick = { content, chapter ->
                                         navigateTo(Screen.Reader(chapter, content.type, content))
                                     }
+                                )
+                            }
+                            is Screen.Settings -> {
+                                SettingsScreen(
+                                    repository = repository
                                 )
                             }
                             is Screen.Search -> {

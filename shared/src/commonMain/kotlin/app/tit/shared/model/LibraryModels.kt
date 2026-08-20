@@ -1,4 +1,4 @@
-﻿package app.tit.shared.model
+package app.tit.shared.model
 
 import app.tit.content.core.model.Content
 import kotlinx.serialization.Serializable
@@ -37,7 +37,9 @@ data class ReadingHistoryItem(
 enum class MangaReadingMode(val title: String) {
     WEBTOON("Cuộn dọc (Webtoon)"),
     LTR("Lật ngang (Trái → Phải)"),
-    RTL("Lật ngang (Phải → Trái - Manga)")
+    RTL("Lật ngang (Phải → Trái - Manga)"),
+    DUAL_PAGE_LTR("Trang đôi (Trái → Phải)"),
+    DUAL_PAGE_RTL("Trang đôi (Phải → Trái)")
 }
 
 @Serializable
@@ -54,6 +56,9 @@ data class ReaderSettings(
     val novelLineHeightMultiplier: Float = 1.6f,
     val novelFontFamily: String = "DEFAULT", // DEFAULT, SERIF, MONOSPACE, CURSIVE
     val novelTheme: NovelThemeType = NovelThemeType.LIGHT,
+    val novelHorizontalPadding: Int = 16,
     val mangaMode: MangaReadingMode = MangaReadingMode.WEBTOON,
-    val volumeKeysNavigation: Boolean = true
+    val volumeKeysNavigation: Boolean = true,
+    val tapZonesEnabled: Boolean = true,
+    val orientationLock: Int = 0 // 0: Auto, 1: Portrait, 2: Landscape
 )

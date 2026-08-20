@@ -1,4 +1,4 @@
-﻿package app.tit.shared.storage
+package app.tit.shared.storage
 
 import app.tit.shared.model.*
 import kotlinx.serialization.encodeToString
@@ -132,5 +132,63 @@ class LibraryStorage(private val driver: KeyValueDriver) {
 
     fun saveReaderSettings(settings: ReaderSettings) {
         driver.putString(KEY_SETTINGS, json.encodeToString(settings))
+    }
+
+    // 5. Backup & Restore
+    fun createBackupPayload(): BackupPayload {
+        return BackupPayload(
+            version = 1,
+            appName = "TitReader-KMP",
+            exportedAt = 0L, // will be populated or handled
+            library = getLibraryBooks(),
+            history = getReadingHistory(),
+            settings = getReaderSettings(),
+            readChapterUrls = getReadChapters().toList()
+        )
+    }
+
+    fun createBackupJson(currentTimestamp: Long = 0L): String {
+        val payload = createBackupPayload().copy(exportedAt = currentTimestamp)
+        return json.encodeToString(payload)
+    }
+
+    fun restoreFromBackupJson(jsonString: String): Boolean {
+        return try {
+            val payload = json.decodeFromString<BackupPayload>(jsonString)
+            if (payload.library.isNotEmpty()) {
+                val currentLib = getLibraryBooks().toMutableList()
+                payload.library.forEach { imported ->
+                    val idx = currentLib.indexOfFirst { it.content.url == imported.content.url }
+                    if (idx >= 0) {
+                        currentLib[idx] = imported
+                    } else {
+                        currentLib.add(imported)
+                    }
+                }
+                driver.putString(KEY_LIBRARY, json.encodeToString(currentLib))
+            }
+
+            if (payload.history.isNotEmpty()) {
+                val currentHistory = getReadingHistory().toMutableList()
+                payload.history.forEach { imported ->
+                    if (currentHistory.none { it.chapterUrl == imported.chapterUrl }) {
+                        currentHistory.add(imported)
+                    }
+                }
+                currentHistory.sortByDescending { it.readAt }
+                driver.putString(KEY_HISTORY, json.encodeToString(currentHistory.take(100)))
+            }
+
+            if (payload.readChapterUrls.isNotEmpty()) {
+                val currentReads = getReadChapters().toMutableSet()
+                currentReads.addAll(payload.readChapterUrls)
+                driver.putString(KEY_READ_CHAPTERS, json.encodeToString(currentReads))
+            }
+
+            saveReaderSettings(payload.settings)
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 }

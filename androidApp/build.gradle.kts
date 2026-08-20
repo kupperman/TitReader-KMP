@@ -83,4 +83,5 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.coroutines.android)
+    implementation(libs.androidx.work.runtime.ktx)
 }

@@ -1,4 +1,4 @@
-﻿package app.tit.reader.novel.android.ui.components
+package app.tit.reader.novel.android.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -177,6 +177,23 @@ fun ReaderSettingsSheet(
                     colors = SliderDefaults.colors(thumbColor = AccentOrange, activeTrackColor = AccentOrange)
                 )
 
+                // 5. Horizontal Padding
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Lề trang hai bên", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                    Text(text = "${currentSettings.novelHorizontalPadding} dp", fontSize = 13.sp, color = AccentOrange, fontWeight = FontWeight.Bold)
+                }
+                Slider(
+                    value = currentSettings.novelHorizontalPadding.toFloat(),
+                    onValueChange = { onSettingsChanged(currentSettings.copy(novelHorizontalPadding = it.toInt())) },
+                    valueRange = 8f..36f,
+                    steps = 7,
+                    colors = SliderDefaults.colors(thumbColor = AccentOrange, activeTrackColor = AccentOrange)
+                )
+
             } else {
                 // --- MANGA SETTINGS ---
                 Text(
@@ -196,13 +213,13 @@ fun ReaderSettingsSheet(
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp)
+                            .padding(vertical = 3.dp)
                             .clickable { onSettingsChanged(currentSettings.copy(mangaMode = mode)) }
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
@@ -213,13 +230,57 @@ fun ReaderSettingsSheet(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = mode.title,
-                                fontSize = 14.sp,
+                                fontSize = 13.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                 color = TextPrimary
                             )
                         }
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            Divider(color = Color(0xFFE8E0D5), thickness = 0.8.dp)
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // --- COMMON CONTROLS ---
+            Text(text = "Điều khiển thông minh", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Tap Zones toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = "Chạm 3 vùng (Tap Zones)", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+                    Text(text = "Chạm trái lùi, giữa menu, phải tiến", fontSize = 11.sp, color = Color.Gray)
+                }
+                Switch(
+                    checked = currentSettings.tapZonesEnabled,
+                    onCheckedChange = { onSettingsChanged(currentSettings.copy(tapZonesEnabled = it)) },
+                    colors = SwitchDefaults.colors(checkedThumbColor = AccentOrange, checkedTrackColor = AccentOrange.copy(alpha = 0.4f))
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Volume Key Navigation toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = "Lật trang bằng phím âm lượng", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+                    Text(text = "Nút tăng: Lùi / Cuộn lên - Nút giảm: Tiến / Cuộn xuống", fontSize = 11.sp, color = Color.Gray)
+                }
+                Switch(
+                    checked = currentSettings.volumeKeysNavigation,
+                    onCheckedChange = { onSettingsChanged(currentSettings.copy(volumeKeysNavigation = it)) },
+                    colors = SwitchDefaults.colors(checkedThumbColor = AccentOrange, checkedTrackColor = AccentOrange.copy(alpha = 0.4f))
+                )
             }
         }
     }

@@ -166,7 +166,13 @@ class AggregatorRepository(
 
     fun isChapterRead(url: String): Boolean = storage.isChapterRead(url)
 
+    fun clearReadingHistory() = storage.clearHistory()
+
     fun getReaderSettings(): app.tit.shared.model.ReaderSettings = storage.getReaderSettings()
 
     fun saveReaderSettings(settings: app.tit.shared.model.ReaderSettings) = storage.saveReaderSettings(settings)
+
+    fun createBackupJson(currentTimestamp: Long = 0L): String = storage.createBackupJson(currentTimestamp)
+
+    fun restoreFromBackupJson(jsonString: String): Boolean = storage.restoreFromBackupJson(jsonString)
 }
