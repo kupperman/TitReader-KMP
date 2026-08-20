@@ -1,5 +1,6 @@
-package app.tit.reader.novel.android.ui.screens
+﻿package app.tit.reader.novel.android.ui.screens
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,21 +9,17 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.tit.content.core.model.Chapter
@@ -32,6 +29,7 @@ import app.tit.content.core.model.ContentType
 import app.tit.reader.novel.android.ui.theme.*
 import app.tit.shared.repository.AggregatorRepository
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 
 @Composable
 fun DetailsScreen(
@@ -47,12 +45,17 @@ fun DetailsScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isFavorite by remember { mutableStateOf(repository.isBookFavorite(content.url)) }
 
+    // UI state
+    var isDescExpanded by remember { mutableStateOf(false) }
+    var isAscending by remember { mutableStateOf(true) }
+    var chapterSearchQuery by remember { mutableStateOf("") }
+
     fun loadDetails() {
         isLoading = true
         errorMessage = null
         scope.launch {
             try {
-                val fetched = kotlinx.coroutines.withTimeoutOrNull(10_000L) {
+                val fetched = kotlinx.coroutines.withTimeoutOrNull(12_000L) {
                     if (content.type == ContentType.NOVEL) {
                         repository.getNovelDetails(content.sourceId, content.url)
                     } else {
@@ -93,7 +96,7 @@ fun DetailsScreen(
                 }
                 Text(
                     text = if (content.type == ContentType.NOVEL) "Chi tiết truyện chữ" else "Chi tiết truyện tranh",
-                    fontSize = 18.sp,
+                    fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     color = InkDark
                 )
@@ -129,12 +132,13 @@ fun DetailsScreen(
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
                     Text(text = "⚠ $errorMessage", color = Color.Red, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     Button(
                         onClick = { loadDetails() },
-                        colors = ButtonDefaults.buttonColors(containerColor = themeColor)
+                        colors = ButtonDefaults.buttonColors(containerColor = themeColor),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Text("Thử lại")
                     }
@@ -145,6 +149,17 @@ fun DetailsScreen(
             val item = d.content
             val bookInLib = repository.storage.getLibraryBook(content.url)
             val continueChapter = d.chapters.find { it.url == bookInLib?.lastReadChapterUrl }
+            val firstChapter = d.chapters.firstOrNull()
+
+            // Sort & Filter chapters
+            val displayChapters = remember(d.chapters, isAscending, chapterSearchQuery) {
+                val list = if (isAscending) d.chapters else d.chapters.reversed()
+                if (chapterSearchQuery.isBlank()) {
+                    list
+                } else {
+                    list.filter { it.title.contains(chapterSearchQuery, ignoreCase = true) }
+                }
+            }
 
             LazyColumn(
                 modifier = Modifier
@@ -152,89 +167,124 @@ fun DetailsScreen(
                     .padding(innerPadding)
                     .padding(horizontal = 16.dp)
             ) {
+                // 1. Header Area (Cover + Info + Action Buttons)
                 item {
-                    Row(
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.Top
+                            .padding(vertical = 8.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .width(110.dp)
-                                .height(154.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFFE8E0D5)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (!item.coverUrl.isNullOrEmpty()) {
-                                AsyncImage(
-                                    model = item.coverUrl,
-                                    contentDescription = item.title,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                Text(
-                                    text = item.title.take(1).uppercase(),
-                                    fontSize = 32.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1E3A5F)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(14.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = item.title,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp,
-                                color = InkDark
-                            )
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            Text(
-                                text = "Nguồn: ${item.sourceName}",
-                                fontSize = 12.sp,
-                                color = themeColor,
-                                fontWeight = FontWeight.Bold
-                            )
-
-                            if (!item.author.isNullOrEmpty()) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Tác giả: ${item.author}",
-                                    fontSize = 13.sp,
-                                    color = MutedGray
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (continueChapter != null) {
-                                    Button(
-                                        onClick = { onChapterClick(continueChapter, item.type) },
-                                        colors = ButtonDefaults.buttonColors(containerColor = themeColor),
-                                        shape = RoundedCornerShape(8.dp),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                    ) {
-                                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Đọc tiếp", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                // Cover Image
+                                Box(
+                                    modifier = Modifier
+                                        .width(115.dp)
+                                        .height(165.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFFE8E0D5)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (!item.coverUrl.isNullOrEmpty()) {
+                                        AsyncImage(
+                                            model = item.coverUrl,
+                                            contentDescription = item.title,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    } else {
+                                        Text(
+                                            text = item.title.take(1).uppercase(),
+                                            fontSize = 36.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF1E3A5F)
+                                        )
                                     }
                                 }
 
-                                if (d.chapters.isNotEmpty()) {
-                                    OutlinedButton(
-                                        onClick = { onChapterClick(d.chapters.first(), item.type) },
-                                        shape = RoundedCornerShape(8.dp),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                Spacer(modifier = Modifier.width(14.dp))
+
+                                // Meta details
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = item.title,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = InkDark,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    // Source pill badge
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(themeColor.copy(alpha = 0.12f))
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
                                     ) {
-                                        Text("Đọc từ đầu", color = themeColor, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                        Text(
+                                            text = item.sourceName,
+                                            fontSize = 11.sp,
+                                            color = themeColor,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+
+                                    if (!item.author.isNullOrEmpty()) {
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = "Tác giả: ${item.author}",
+                                            fontSize = 12.sp,
+                                            color = MutedGray,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Tổng: ${d.chapters.size} chương",
+                                        fontSize = 12.sp,
+                                        color = MutedGray
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Action buttons
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                if (firstChapter != null) {
+                                    Button(
+                                        onClick = { onChapterClick(firstChapter, item.type) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = themeColor),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Đọc từ đầu", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    }
+                                }
+
+                                if (continueChapter != null) {
+                                    OutlinedButton(
+                                        onClick = { onChapterClick(continueChapter, item.type) },
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Đọc tiếp", color = themeColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                     }
                                 }
                             }
@@ -242,6 +292,7 @@ fun DetailsScreen(
                     }
                 }
 
+                // 2. Expandable Description Card
                 if (!d.description.isNullOrEmpty()) {
                     item {
                         Card(
@@ -249,9 +300,14 @@ fun DetailsScreen(
                             colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 6.dp)
+                                .padding(vertical = 4.dp)
+                                .clickable { isDescExpanded = !isDescExpanded }
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
+                            Column(
+                                modifier = Modifier
+                                    .padding(14.dp)
+                                    .animateContentSize()
+                            ) {
                                 Text(
                                     text = "Giới thiệu",
                                     fontWeight = FontWeight.Bold,
@@ -263,37 +319,97 @@ fun DetailsScreen(
                                     text = d.description ?: "",
                                     fontSize = 13.sp,
                                     color = MutedGray,
-                                    lineHeight = 18.sp
+                                    lineHeight = 19.sp,
+                                    maxLines = if (isDescExpanded) Int.MAX_VALUE else 3,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (isDescExpanded) "▲ Thu gọn" else "▼ Xem thêm",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = themeColor
                                 )
                             }
                         }
                     }
                 }
 
+                // 3. Chapter List Controls Header
                 item {
-                    Text(
-                        text = "Danh sách ${d.chapters.size} chương / chap",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = InkDark,
-                        modifier = Modifier.padding(vertical = 10.dp)
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Danh sách chương (${d.chapters.size})",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = InkDark
+                            )
+
+                            // Sort Order Toggle Button
+                            IconButton(
+                                onClick = { isAscending = !isAscending },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Sort,
+                                    contentDescription = "Đảo thứ tự",
+                                    tint = themeColor
+                                )
+                            }
+                        }
+
+                        // Search chapter field
+                        OutlinedTextField(
+                            value = chapterSearchQuery,
+                            onValueChange = { chapterSearchQuery = it },
+                            placeholder = { Text("Tìm tên hoặc số chương...", fontSize = 12.sp) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = SurfaceWhite,
+                                unfocusedContainerColor = SurfaceWhite,
+                                focusedBorderColor = themeColor,
+                                unfocusedBorderColor = Color(0xFFE8E0D5)
+                            )
+                        )
+                    }
                 }
 
-                itemsIndexed(d.chapters) { index, chapter ->
+                // 4. Chapter Items List
+                itemsIndexed(displayChapters, key = { _, ch -> ch.url }) { index, chapter ->
                     val isRead = repository.isChapterRead(chapter.url)
-                    Box(
+                    val chapterNum = if (isAscending) index + 1 else d.chapters.size - index
+
+                    Card(
+                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isRead) Color(0xFFF1ECE4) else SurfaceWhite
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 3.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isRead) Color(0xFFF3EFE6) else SurfaceWhite)
                             .clickable { onChapterClick(chapter, item.type) }
-                            .padding(horizontal = 14.dp, vertical = 11.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                text = String.format("%03d", index + 1),
+                                text = String.format("%03d", chapterNum),
                                 color = if (isRead) MutedGray else themeColor,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
@@ -304,9 +420,12 @@ fun DetailsScreen(
                                 color = if (isRead) MutedGray else InkDark,
                                 fontSize = 13.sp,
                                 fontWeight = if (isRead) FontWeight.Normal else FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
                             )
                             if (isRead) {
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Icon(
                                     imageVector = Icons.Default.Check,
                                     contentDescription = "Đã đọc",
@@ -317,6 +436,8 @@ fun DetailsScreen(
                         }
                     }
                 }
+
+                item { Spacer(modifier = Modifier.height(20.dp)) }
             }
         }
     }

@@ -48,7 +48,12 @@ object NovelSourceRegistry : SourceCatalog<NovelParser> {
     override fun allSources(): List<SourceInfo> = sourceInfoList
 
     override fun createParser(id: String, ctx: LoaderContext): NovelParser {
-        val factory = sources[id] ?: sources.values.first()
-        return factory(ctx)
+        val upperId = id.uppercase()
+        val factory = sources[upperId]
+            ?: if (id.contains("truyendich", ignoreCase = true)) sources["TRUYENDICH"]
+            else if (id.contains("truyenhoan", ignoreCase = true)) sources["TRUYENHOAN"]
+            else if (id.contains("truyenfull", ignoreCase = true)) sources["TRUYENFULL"]
+            else sources.values.first()
+        return factory!!(ctx)
     }
 }

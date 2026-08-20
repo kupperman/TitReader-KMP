@@ -58,7 +58,13 @@ object MangaSourceRegistry : SourceCatalog<MangaParser> {
     override fun allSources(): List<SourceInfo> = sourceInfoList
 
     override fun createParser(id: String, ctx: LoaderContext): MangaParser {
-        val factory = sources[id] ?: sources.values.first()
-        return factory(ctx)
+        val upperId = id.uppercase()
+        val factory = sources[upperId]
+            ?: if (id.contains("otruyen", ignoreCase = true)) sources["OTRUYEN"]
+            else if (id.contains("foxtruyen", ignoreCase = true)) sources["FOXTRUYEN"]
+            else if (id.contains("truyenqq", ignoreCase = true)) sources["TRUYENQQ"]
+            else if (id.contains("nettruyen", ignoreCase = true)) sources["NETTRUYEN"]
+            else sources.values.first()
+        return factory!!(ctx)
     }
 }

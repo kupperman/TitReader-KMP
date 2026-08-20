@@ -1,4 +1,4 @@
-﻿package app.tit.parsers.novel.site.vi
+package app.tit.parsers.novel.site.vi
 
 import app.tit.content.core.LoaderContext
 import app.tit.content.core.NovelParser
@@ -119,8 +119,15 @@ class TruyenDichParser(
         val doc = context.parseHtml(novelUrl)
         val title = doc.selectFirst("h1.title, h1[itemprop='name'], h1")?.text()?.trim() ?: "Không có tiêu đề"
 
-        val cover = doc.selectFirst(".book img, .desc-story img, .info-holder img, img")?.let { img ->
-            img.attr("data-src").ifEmpty { img.attr("src") }
+        val cover = doc.selectFirst("img[itemprop='image'], .book img, .books img, img[src*='story-thumb'], .thumb img, .desc-story img")?.let { img ->
+            img.attr("data-src").ifEmpty { img.attr("data-original") }.ifEmpty { img.attr("src") }
+        }?.let { raw ->
+            when {
+                raw.startsWith("//") -> "https:$raw"
+                raw.startsWith("http") -> raw
+                raw.isNotEmpty() -> "$domain$raw"
+                else -> null
+            }
         }
 
         val author = doc.selectFirst("a[itemprop='author'], .author a, .info a[href*='tac-gia']")?.text()?.trim()
@@ -133,7 +140,11 @@ class TruyenDichParser(
 
         val chapters = mutableListOf<Chapter>()
         var order = 1
-        doc.select(".list-chapter a, ul.list-chapter li a, a[href*='chuong-']").forEach { a ->
+        // Chỉ lấy các thẻ a trong block danh sách chương (bỏ qua widget top các chương mới nhất)
+        val chapterLinks = doc.select("#list-chapter ul.list-chapter li a, .list-chapter li a")
+        val linksToUse = if (chapterLinks.isNotEmpty()) chapterLinks else doc.select("a[href*='chuong-']")
+
+        linksToUse.forEach { a ->
             val chTitle = a.text().trim()
             val rawHref = a.attr("href").trim()
             val chUrl = if (rawHref.startsWith("http")) rawHref else "$domain$rawHref"
@@ -171,18 +182,35 @@ class TruyenDichParser(
 
     override suspend fun getChapterContent(chapterUrl: String): ChapterContent.Text {
         val doc = context.parseHtml(chapterUrl)
-        val title = doc.selectFirst(".chapter-title, .chapter-c h2, h2, h1")?.text()?.trim() ?: "Nội dung chương"
+        val title = doc.selectFirst("a.chapter-title, .chapter-title, .chapter-c h2, h2, h1")?.attr("title")?.takeIf { it.isNotEmpty() }
+            ?: doc.selectFirst("a.chapter-title, .chapter-title, .chapter-c h2, h2, h1")?.text()?.trim()
+            ?: "Nội dung chương"
 
-        val contentEl = doc.selectFirst("#chapter-c, .chapter-c, .chapter-content")
+        val contentEl = doc.selectFirst("#chapter-c, .chapter-c, .chapter-content, #content")
             ?: error("Không tìm thấy nội dung chương")
 
         // Loại bỏ quảng cáo
         contentEl.select("script, style, .ads, .ad, div[class*='ads']").remove()
 
-        val text = contentEl.wholeText().trim()
+        val paragraphs = contentEl.select("p").map { it.text().trim() }.filter { it.isNotEmpty() }
+        val text = if (paragraphs.isNotEmpty()) {
+            paragraphs.joinToString("\n\n")
+        } else {
+            contentEl.html()
+                .replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
+                .replace(Regex("<p[^>]*>", RegexOption.IGNORE_CASE), "\n\n")
+                .replace(Regex("</p>", RegexOption.IGNORE_CASE), "")
+                .replace(Regex("<[^>]+>"), "")
+                .trim()
+        }
 
-        val prevHref = doc.selectFirst("a#prev_chap, a.prev-chap, a.btn-prev")?.attr("href")?.takeIf { it.isNotEmpty() }
-        val nextHref = doc.selectFirst("a#next_chap, a.next-chap, a.btn-next")?.attr("href")?.takeIf { it.isNotEmpty() }
+        val prevHref = doc.selectFirst("a#prev_chap, a.prev-chap, a.btn-prev")?.attr("href")
+            ?.takeIf { it.isNotEmpty() && it != "#" && !it.startsWith("javascript") }
+            ?.let { if (it.startsWith("http")) it else "$domain$it" }
+
+        val nextHref = doc.selectFirst("a#next_chap, a.next-chap, a.btn-next")?.attr("href")
+            ?.takeIf { it.isNotEmpty() && it != "#" && !it.startsWith("javascript") }
+            ?.let { if (it.startsWith("http")) it else "$domain$it" }
 
         return ChapterContent.Text(
             title = title,
