@@ -62,3 +62,14 @@ data class ReaderSettings(
     val tapZonesEnabled: Boolean = true,
     val orientationLock: Int = 0 // 0: Auto, 1: Portrait, 2: Landscape
 )
+
+@Serializable
+data class BookUpdateItem(
+    val content: Content,
+    val totalChapters: Int = 0,
+    val newChaptersCount: Int = 0,
+    val latestChapterTitle: String? = null,
+    val updatedAt: Long = 0L,
+    val isSeen: Boolean = false,
+    val readPercentage: Int = 0
+)

@@ -1,4 +1,4 @@
-﻿package app.tit.reader.novel.android
+package app.tit.reader.novel.android
 
 import android.os.Bundle
 import android.view.KeyEvent
@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -47,6 +48,7 @@ import java.util.concurrent.TimeUnit
 
 sealed class Screen {
     object Home : Screen()
+    object Updates : Screen()
     object Library : Screen()
     object History : Screen()
     object Settings : Screen()
@@ -135,9 +137,12 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val isTopLevel = currentScreen is Screen.Home || 
+                                 currentScreen is Screen.Updates ||
                                  currentScreen is Screen.Library || 
                                  currentScreen is Screen.History || 
                                  currentScreen is Screen.Settings
+
+                val unreadUpdatesCount = remember(currentScreen) { repository.getUnreadUpdatesCount() }
 
                 Scaffold(
                     bottomBar = {
@@ -148,6 +153,7 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 val navItems = listOf(
                                     Triple(Screen.Home, "Khám Phá", Icons.Default.Explore),
+                                    Triple(Screen.Updates, "Bảng Tin", Icons.Default.Favorite),
                                     Triple(Screen.Library, "Tủ Sách", Icons.Default.Bookmarks),
                                     Triple(Screen.History, "Lịch Sử", Icons.Default.History),
                                     Triple(Screen.Settings, "Cài Đặt", Icons.Default.Settings)
@@ -164,16 +170,29 @@ class MainActivity : ComponentActivity() {
                                             }
                                         },
                                         icon = {
-                                            Icon(
-                                                imageVector = icon,
-                                                contentDescription = label,
-                                                tint = if (isSelected) AccentOrange else MutedGray
-                                            )
+                                            BadgedBox(
+                                                badge = {
+                                                    if (screenDest is Screen.Updates && unreadUpdatesCount > 0) {
+                                                        Badge(
+                                                            containerColor = Color(0xFFEF4444),
+                                                            contentColor = Color.White
+                                                        ) {
+                                                            Text(if (unreadUpdatesCount > 99) "99+" else "$unreadUpdatesCount")
+                                                        }
+                                                    }
+                                                }
+                                            ) {
+                                                Icon(
+                                                    imageVector = icon,
+                                                    contentDescription = label,
+                                                    tint = if (isSelected) AccentOrange else MutedGray
+                                                )
+                                            }
                                         },
                                         label = {
                                             Text(
                                                 text = label,
-                                                fontSize = 11.sp,
+                                                fontSize = 10.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                                 color = if (isSelected) AccentOrange else MutedGray
                                             )
@@ -193,6 +212,12 @@ class MainActivity : ComponentActivity() {
                                 HomeScreen(
                                     onContentClick = { content -> navigateTo(Screen.Details(content)) },
                                     onSearchClick = { type -> navigateTo(Screen.Search(type)) }
+                                )
+                            }
+                            is Screen.Updates -> {
+                                app.tit.reader.novel.android.ui.screens.UpdatesScreen(
+                                    repository = repository,
+                                    onContentClick = { content -> navigateTo(Screen.Details(content)) }
                                 )
                             }
                             is Screen.Library -> {

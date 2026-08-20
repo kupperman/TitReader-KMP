@@ -28,7 +28,7 @@ class TruyenQQParser(
         val (doc, base) = context.parseHtmlRace(mirrors, path)
         val list = mutableListOf<Content>()
 
-        doc.select(".list_grid li, ul.grid > li, .story-item, .item, .book_avatar").forEach { el ->
+        doc.select(".list_grid > li, ul.grid > li, .story-item").forEach { el ->
             val link = el.selectFirst(".book_info h3 a")
                 ?: el.selectFirst(".book_info a")
                 ?: el.selectFirst(".book_name a")
@@ -60,7 +60,7 @@ class TruyenQQParser(
 
                 val latestChap = el.selectFirst(".last_chapter a, .chapter a, .story-chapter a, a[href*='-chap-']")?.text()?.trim()
 
-                if (title.isNotEmpty() && mangaUrl.isNotEmpty() && !mangaUrl.contains("/the-loai/")) {
+                if (title.isNotEmpty() && mangaUrl.isNotEmpty() && !mangaUrl.contains("/the-loai/") && list.none { it.url == mangaUrl }) {
                     list.add(
                         Content(
                             id = mangaUrl,
@@ -84,7 +84,7 @@ class TruyenQQParser(
         val (doc, base) = context.parseHtmlRace(mirrors, path)
         val list = mutableListOf<Content>()
 
-        doc.select(".list_grid li, ul.grid > li, .story-item, .item, .book_avatar").forEach { el ->
+        doc.select(".list_grid > li, ul.grid > li, .story-item").forEach { el ->
             val link = el.selectFirst(".book_info h3 a")
                 ?: el.selectFirst(".book_info a")
                 ?: el.selectFirst(".book_name a")
@@ -116,7 +116,7 @@ class TruyenQQParser(
 
                 val latestChap = el.selectFirst(".last_chapter a, .chapter a, .story-chapter a, a[href*='-chap-']")?.text()?.trim()
 
-                if (title.isNotEmpty() && mangaUrl.isNotEmpty() && !mangaUrl.contains("/the-loai/")) {
+                if (title.isNotEmpty() && mangaUrl.isNotEmpty() && !mangaUrl.contains("/the-loai/") && list.none { it.url == mangaUrl }) {
                     list.add(
                         Content(
                             id = mangaUrl,
@@ -137,9 +137,9 @@ class TruyenQQParser(
 
     override suspend fun getDetails(mangaUrl: String): ContentDetails {
         val doc = context.parseHtml(mangaUrl)
-        val title = doc.selectFirst("h1[itemprop='name'], h1.title, h1")?.text()?.trim() ?: "Không có tiêu đề"
+        val title = doc.selectFirst("h1[itemprop='name'], h1.title, .story-detail h1, h1")?.text()?.trim() ?: "Không có tiêu đề"
 
-        val cover = doc.selectFirst(".book_avatar img, .book_info img, img")?.let { img ->
+        val cover = doc.selectFirst(".book_avatar img, .story-thumb img, .thumb img, img[itemprop='image']")?.let { img ->
             img.attr("src")
                 .ifEmpty { img.attr("data-src") }
                 .ifEmpty { img.attr("data-original") }
@@ -155,8 +155,7 @@ class TruyenQQParser(
 
         val author = doc.selectFirst(".author a, .org a, a[href*='tac-gia']")?.text()?.trim()
         val desc = doc.selectFirst(".story-detail-info, .detail-content, .story-desc, .desc")?.text()?.trim()
-        val statusText = doc.selectFirst(".status, .info-item, .list-info")?.text() ?: ""
-        val status = if (statusText.contains("Hoàn thành", ignoreCase = true)) {
+        val status = if (doc.selectFirst(".status, .info")?.text()?.contains("Hoàn", ignoreCase = true) == true) {
             ContentStatus.COMPLETED
         } else {
             ContentStatus.ONGOING
@@ -164,7 +163,8 @@ class TruyenQQParser(
 
         val chapters = mutableListOf<Chapter>()
         var order = 1
-        doc.select(".works-chapter-item a, .list_chapter a, .chapter_list a, a[href*='-chap-']").forEach { a ->
+        val chapElements = doc.select(".works-chapter-item a, .list_chapter a, .chapter_list a, a[href*='-chap-']")
+        chapElements.forEach { a ->
             val chTitle = a.text().trim()
             val rawHref = a.attr("href").trim()
             val chUrl = if (rawHref.startsWith("http")) rawHref else "$domain$rawHref"
@@ -221,6 +221,20 @@ class TruyenQQParser(
 
             if (cleanUrl != null && !cleanUrl.contains("loading") && !cleanUrl.contains("logo") && !imageUrls.contains(cleanUrl)) {
                 imageUrls.add(cleanUrl)
+            }
+        }
+
+        // Fallback: Trích xuất ảnh trực tiếp từ mã Javascript obfuscated của TruyenQQ
+        if (imageUrls.isEmpty()) {
+            val htmlContent = doc.html()
+            val imgRegex = Regex("https?://[^\"'\\s\\\\)]+?\\.(?:jpg|jpeg|png|webp)", RegexOption.IGNORE_CASE)
+            imgRegex.findAll(htmlContent).forEach { match ->
+                val link = match.value
+                val isStoryImg = (link.contains("truyenvua") || link.contains("hinhtruyen") || link.contains("tintruyen") || link.contains("cdn") || link.contains("truyenqq")) &&
+                    !link.contains("logo") && !link.contains("template") && !link.contains("frontend") && !link.contains("avatar") && !link.contains("banner")
+                if (isStoryImg && !imageUrls.contains(link)) {
+                    imageUrls.add(link)
+                }
             }
         }
 

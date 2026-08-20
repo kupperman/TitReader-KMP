@@ -191,4 +191,40 @@ class LibraryStorage(private val driver: KeyValueDriver) {
             false
         }
     }
+
+    // 6. Book Updates Feed (Kotatsu-style)
+    private val KEY_UPDATES = "tit_book_updates"
+
+    fun getBookUpdates(): List<BookUpdateItem> {
+        val raw = driver.getString(KEY_UPDATES) ?: return emptyList()
+        return try {
+            json.decodeFromString(raw)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun saveBookUpdates(updates: List<BookUpdateItem>) {
+        driver.putString(KEY_UPDATES, json.encodeToString(updates))
+    }
+
+    fun recordBookUpdate(item: BookUpdateItem) {
+        val current = getBookUpdates().toMutableList()
+        val idx = current.indexOfFirst { it.content.url == item.content.url }
+        if (idx >= 0) {
+            current[idx] = item
+        } else {
+            current.add(0, item)
+        }
+        saveBookUpdates(current)
+    }
+
+    fun markUpdatesSeen() {
+        val current = getBookUpdates().map { it.copy(isSeen = true) }
+        saveBookUpdates(current)
+    }
+
+    fun getUnreadUpdatesCount(): Int {
+        return getBookUpdates().filterNot { it.isSeen }.sumOf { it.newChaptersCount.coerceAtLeast(1) }
+    }
 }

@@ -175,4 +175,51 @@ class AggregatorRepository(
     fun createBackupJson(currentTimestamp: Long = 0L): String = storage.createBackupJson(currentTimestamp)
 
     fun restoreFromBackupJson(jsonString: String): Boolean = storage.restoreFromBackupJson(jsonString)
+
+    fun getBookUpdates(): List<app.tit.shared.model.BookUpdateItem> = storage.getBookUpdates()
+
+    fun recordBookUpdate(item: app.tit.shared.model.BookUpdateItem) = storage.recordBookUpdate(item)
+
+    fun markUpdatesSeen() = storage.markUpdatesSeen()
+
+    fun getUnreadUpdatesCount(): Int = storage.getUnreadUpdatesCount()
+
+    suspend fun checkLibraryUpdates(currentTime: Long = 0L): Int {
+        val books = storage.getLibraryBooks()
+        var totalNew = 0
+
+        for (book in books) {
+            try {
+                val details = if (book.content.type == app.tit.content.core.model.ContentType.NOVEL) {
+                    getNovelDetails(book.content.sourceId, book.content.url)
+                } else {
+                    getMangaDetails(book.content.sourceId, book.content.url)
+                }
+
+                val remoteCount = details.chapters.size
+                val localCount = book.totalChapters
+
+                if (localCount > 0 && remoteCount > localCount) {
+                    val diff = remoteCount - localCount
+                    totalNew += diff
+                    val readCount = details.chapters.count { isChapterRead(it.url) }
+                    val readPct = if (remoteCount > 0) (readCount * 100 / remoteCount) else 0
+
+                    storage.recordBookUpdate(
+                        app.tit.shared.model.BookUpdateItem(
+                            content = details.content,
+                            totalChapters = remoteCount,
+                            newChaptersCount = diff,
+                            latestChapterTitle = details.chapters.lastOrNull()?.title ?: details.content.latestChapter,
+                            updatedAt = currentTime,
+                            isSeen = false,
+                            readPercentage = readPct
+                        )
+                    )
+                }
+                storage.saveBookToLibrary(book.copy(totalChapters = remoteCount))
+            } catch (_: Exception) { }
+        }
+        return totalNew
+    }
 }
