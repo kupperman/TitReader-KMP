@@ -58,10 +58,21 @@ fun ReaderScreen(
         errorMessage = null
         scope.launch {
             try {
-                if (type == ContentType.NOVEL) {
-                    textContent = repository.getNovelChapterContent(chapter.sourceId, url)
+                val fetched = kotlinx.coroutines.withTimeoutOrNull(15_000L) {
+                    if (type == ContentType.NOVEL) {
+                        repository.getNovelChapterContent(chapter.sourceId, url)
+                    } else {
+                        repository.getMangaChapterContent(chapter.sourceId, url)
+                    }
+                }
+                if (fetched != null) {
+                    if (type == ContentType.NOVEL) {
+                        textContent = fetched as ChapterContent.Text
+                    } else {
+                        imageContent = fetched as ChapterContent.ImagePages
+                    }
                 } else {
-                    imageContent = repository.getMangaChapterContent(chapter.sourceId, url)
+                    errorMessage = "Quá thời gian tải chương (Timeout). Vui lòng kiểm tra kết nối mạng và thử lại."
                 }
             } catch (e: Exception) {
                 errorMessage = e.message ?: "Lỗi tải nội dung"

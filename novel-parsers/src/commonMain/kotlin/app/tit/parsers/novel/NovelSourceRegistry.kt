@@ -7,6 +7,7 @@ import app.tit.content.core.model.ContentType
 import app.tit.content.core.model.SourceInfo
 import app.tit.parsers.novel.site.vi.DTruyenParser
 import app.tit.parsers.novel.site.vi.TangThuVienParser
+import app.tit.parsers.novel.site.vi.TruyenChuParser
 import app.tit.parsers.novel.site.vi.TruyenFullParser
 
 object NovelSourceRegistry : SourceCatalog<NovelParser> {
@@ -14,6 +15,7 @@ object NovelSourceRegistry : SourceCatalog<NovelParser> {
 
     private val sources: Map<String, (LoaderContext) -> NovelParser> = mapOf(
         "TRUYENFULL" to { ctx -> TruyenFullParser(ctx) },
+        "TRUYENCHU" to { ctx -> TruyenChuParser(ctx) },
         "DTRUYEN" to { ctx -> DTruyenParser(ctx) },
         "TANGTHUVIEN" to { ctx -> TangThuVienParser(ctx) }
     )
@@ -26,6 +28,14 @@ object NovelSourceRegistry : SourceCatalog<NovelParser> {
             version = 1,
             type = ContentType.NOVEL,
             domain = "https://truyenfull.live"
+        ),
+        SourceInfo(
+            id = "TRUYENCHU",
+            name = "Truyện Chữ",
+            lang = "vi",
+            version = 1,
+            type = ContentType.NOVEL,
+            domain = "https://truyenchu.net"
         ),
         SourceInfo(
             id = "DTRUYEN",

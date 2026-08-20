@@ -59,18 +59,25 @@ fun HomeScreen(
 
         scope.launch {
             try {
-                if (activeTab == ContentType.NOVEL) {
-                    items = repository.getNovelCatalog(
-                        sourceId = selectedNovelSourceId,
-                        page = page,
-                        filter = ContentFilter.NovelFilter(order = selectedOrder)
-                    )
+                val fetched = kotlinx.coroutines.withTimeoutOrNull(10_000L) {
+                    if (activeTab == ContentType.NOVEL) {
+                        repository.getNovelCatalog(
+                            sourceId = selectedNovelSourceId,
+                            page = page,
+                            filter = ContentFilter.NovelFilter(order = selectedOrder)
+                        )
+                    } else {
+                        repository.getMangaCatalog(
+                            sourceId = selectedMangaSourceId,
+                            page = page,
+                            filter = ContentFilter.MangaFilter(order = selectedOrder)
+                        )
+                    }
+                }
+                if (fetched != null) {
+                    items = fetched
                 } else {
-                    items = repository.getMangaCatalog(
-                        sourceId = selectedMangaSourceId,
-                        page = page,
-                        filter = ContentFilter.MangaFilter(order = selectedOrder)
-                    )
+                    errorMessage = "Quá thời gian phản hồi (Timeout). Vui lòng thử lại hoặc chọn nguồn khác."
                 }
             } catch (e: Exception) {
                 errorMessage = e.message ?: "Lỗi tải dữ liệu"
@@ -253,15 +260,23 @@ fun HomeScreen(
                 }
             } else if (errorMessage != null) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = "⚠ $errorMessage", color = Color.Red, fontSize = 14.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                        Text(text = "⚠ $errorMessage", color = Color(0xFFB91C1C), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(12.dp))
                         Button(
                             onClick = { loadData() },
                             colors = ButtonDefaults.buttonColors(containerColor = if (activeTab == ContentType.NOVEL) AccentOrange else Color(0xFF3B82F6))
                         ) {
                             Text("Thử lại")
                         }
+                    }
+                }
+            } else if (items.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                        Text(text = "📭 Chưa có dữ liệu từ nguồn này", color = MutedGray, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(text = "Bạn có thể thử chọn nguồn khác hoặc đổi thứ tự sắp xếp", color = MutedGray, fontSize = 12.sp)
                     }
                 }
             } else {

@@ -45,10 +45,17 @@ fun DetailsScreen(
         errorMessage = null
         scope.launch {
             try {
-                details = if (content.type == ContentType.NOVEL) {
-                    repository.getNovelDetails(content.sourceId, content.url)
+                val fetched = kotlinx.coroutines.withTimeoutOrNull(10_000L) {
+                    if (content.type == ContentType.NOVEL) {
+                        repository.getNovelDetails(content.sourceId, content.url)
+                    } else {
+                        repository.getMangaDetails(content.sourceId, content.url)
+                    }
+                }
+                if (fetched != null) {
+                    details = fetched
                 } else {
-                    repository.getMangaDetails(content.sourceId, content.url)
+                    errorMessage = "Quá thời gian phản hồi (Timeout). Vui lòng thử lại sau."
                 }
             } catch (e: Exception) {
                 errorMessage = e.message ?: "Lỗi tải thông tin"

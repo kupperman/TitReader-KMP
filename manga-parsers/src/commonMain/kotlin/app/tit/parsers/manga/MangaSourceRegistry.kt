@@ -5,6 +5,7 @@ import app.tit.content.core.MangaParser
 import app.tit.content.core.SourceCatalog
 import app.tit.content.core.model.ContentType
 import app.tit.content.core.model.SourceInfo
+import app.tit.parsers.manga.site.vi.FoxTruyenParser
 import app.tit.parsers.manga.site.vi.NetTruyenParser
 import app.tit.parsers.manga.site.vi.OTruyenParser
 import app.tit.parsers.manga.site.vi.TruyenQQParser
@@ -14,6 +15,7 @@ object MangaSourceRegistry : SourceCatalog<MangaParser> {
 
     private val sources: Map<String, (LoaderContext) -> MangaParser> = mapOf(
         "OTRUYEN" to { ctx -> OTruyenParser(ctx) },
+        "FOXTRUYEN" to { ctx -> FoxTruyenParser(ctx) },
         "TRUYENQQ" to { ctx -> TruyenQQParser(ctx) },
         "NETTRUYEN" to { ctx -> NetTruyenParser(ctx) }
     )
@@ -26,6 +28,14 @@ object MangaSourceRegistry : SourceCatalog<MangaParser> {
             version = 1,
             type = ContentType.MANGA,
             domain = "https://otruyenapi.com"
+        ),
+        SourceInfo(
+            id = "FOXTRUYEN",
+            name = "FoxTruyen",
+            lang = "vi",
+            version = 1,
+            type = ContentType.MANGA,
+            domain = "https://foxtruyen2.com"
         ),
         SourceInfo(
             id = "TRUYENQQ",
