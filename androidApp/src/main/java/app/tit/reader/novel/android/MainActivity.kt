@@ -54,10 +54,9 @@ class MainActivity : ComponentActivity() {
                     host.contains("nettruyen") || host.contains("kptackpte") || host.contains("ccnnts") -> "https://nettruyenx.net/"
                     host.contains("truyenqq") || host.contains("hinhhinh") -> "https://truyenqqko.com/"
                     host.contains("foxtruyen") || host.contains("hinhgg") -> "https://foxtruyen2.com/"
-                    host.contains("tangthuvien") -> "https://truyen.tangthuvien.vn/"
+                    host.contains("truyendich") -> "https://truyendich.vn/"
+                    host.contains("truyenhoan") -> "https://truyenhoan.com/"
                     host.contains("truyenfull") -> "https://truyenfull.live/"
-                    host.contains("truyenchu") -> "https://truyenchu.net/"
-                    host.contains("dtruyen") -> "https://dtruyen.com.vn/"
                     else -> "${original.url.scheme}://${original.url.host}/"
                 }
 

@@ -5,19 +5,17 @@ import app.tit.content.core.NovelParser
 import app.tit.content.core.SourceCatalog
 import app.tit.content.core.model.ContentType
 import app.tit.content.core.model.SourceInfo
-import app.tit.parsers.novel.site.vi.DTruyenParser
-import app.tit.parsers.novel.site.vi.TangThuVienParser
-import app.tit.parsers.novel.site.vi.TruyenChuParser
+import app.tit.parsers.novel.site.vi.TruyenDichParser
 import app.tit.parsers.novel.site.vi.TruyenFullParser
+import app.tit.parsers.novel.site.vi.TruyenHoanParser
 
 object NovelSourceRegistry : SourceCatalog<NovelParser> {
     override val type: ContentType = ContentType.NOVEL
 
     private val sources: Map<String, (LoaderContext) -> NovelParser> = mapOf(
         "TRUYENFULL" to { ctx -> TruyenFullParser(ctx) },
-        "TRUYENCHU" to { ctx -> TruyenChuParser(ctx) },
-        "DTRUYEN" to { ctx -> DTruyenParser(ctx) },
-        "TANGTHUVIEN" to { ctx -> TangThuVienParser(ctx) }
+        "TRUYENDICH" to { ctx -> TruyenDichParser(ctx) },
+        "TRUYENHOAN" to { ctx -> TruyenHoanParser(ctx) }
     )
 
     private val sourceInfoList: List<SourceInfo> = listOf(
@@ -30,28 +28,20 @@ object NovelSourceRegistry : SourceCatalog<NovelParser> {
             domain = "https://truyenfull.live"
         ),
         SourceInfo(
-            id = "TRUYENCHU",
-            name = "Truyện Chữ",
+            id = "TRUYENDICH",
+            name = "Truyện Dịch",
             lang = "vi",
             version = 1,
             type = ContentType.NOVEL,
-            domain = "https://truyenchu.net"
+            domain = "https://truyendich.vn"
         ),
         SourceInfo(
-            id = "DTRUYEN",
-            name = "DTruyen",
-            lang = "vi",
-            version = 2,
-            type = ContentType.NOVEL,
-            domain = "https://dtruyen.com.vn"
-        ),
-        SourceInfo(
-            id = "TANGTHUVIEN",
-            name = "Tàng Thư Viện",
+            id = "TRUYENHOAN",
+            name = "Truyện Hoàn",
             lang = "vi",
             version = 1,
             type = ContentType.NOVEL,
-            domain = "https://truyen.tangthuvien.vn"
+            domain = "https://truyenhoan.com"
         )
     )
 
