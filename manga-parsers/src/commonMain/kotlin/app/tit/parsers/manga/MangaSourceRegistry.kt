@@ -29,9 +29,9 @@ object MangaSourceRegistry : SourceCatalog<MangaParser> {
             id = "NETTRUYEN",
             name = "NetTruyen",
             lang = "vi",
-            version = 1,
+            version = 2,
             type = ContentType.MANGA,
-            domain = "https://nettruyena.com"
+            domain = "https://nettruyenx.net"
         )
     )
 

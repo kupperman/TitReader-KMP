@@ -17,6 +17,7 @@ class TruyenQQParser(
     // Multi-domain list with latest active mirrors at the front and fallbacks preserved
     private val mirrors: List<String> = listOf(
         "https://truyenqqko.com",
+        "https://truyenqqgo.com",
         "https://foxtruyen2.com",
         "https://truyenqqto.com",
         "https://truyenqqvn.com",
@@ -34,10 +35,17 @@ class TruyenQQParser(
         val list = mutableListOf<Content>()
 
         doc.select(".list_grid li, ul.grid > li, .story-item, .item").forEach { el ->
-            val link = el.selectFirst(".book_info h3 a, h3 a, .title a, a.story-title, .book_avatar a")
+            val link = el.selectFirst(".book_info h3 a")
+                ?: el.selectFirst(".book_info a")
+                ?: el.selectFirst("h3 a, .title a, a.story-title")
+                ?: el.selectFirst(".book_avatar a")
+
             if (link != null) {
-                val title = link.attr("title").ifEmpty { link.text() }.trim()
-                val rawHref = link.attr("href").trim()
+                val title = link.text().trim().ifEmpty { link.attr("title").trim() }
+                    .ifEmpty { el.selectFirst("img")?.attr("alt")?.trim() ?: "" }
+                val rawHref = link.attr("href").trim().ifEmpty {
+                    el.selectFirst(".book_avatar a")?.attr("href")?.trim() ?: ""
+                }
                 val mangaUrl = if (rawHref.startsWith("http")) rawHref else "$base$rawHref"
 
                 val cover = el.selectFirst("img")?.attr("data-src")
@@ -66,15 +74,22 @@ class TruyenQQParser(
     }
 
     override suspend fun search(query: String, page: Int): List<Content> {
-        val path = if (page == 1) "/tim-kiem.html?q=$query" else "/tim-kiem/trang-$page.html?q=$query"
+        val path = if (page == 1) "/tim-kiem?q=$query" else "/tim-kiem/trang-$page?q=$query"
         val (doc, base) = context.parseHtmlRace(mirrors, path)
         val list = mutableListOf<Content>()
 
         doc.select(".list_grid li, ul.grid > li, .story-item, .item").forEach { el ->
-            val link = el.selectFirst(".book_info h3 a, h3 a, .title a, a.story-title")
+            val link = el.selectFirst(".book_info h3 a")
+                ?: el.selectFirst(".book_info a")
+                ?: el.selectFirst("h3 a, .title a, a.story-title")
+                ?: el.selectFirst(".book_avatar a")
+
             if (link != null) {
-                val title = link.attr("title").ifEmpty { link.text() }.trim()
-                val rawHref = link.attr("href").trim()
+                val title = link.text().trim().ifEmpty { link.attr("title").trim() }
+                    .ifEmpty { el.selectFirst("img")?.attr("alt")?.trim() ?: "" }
+                val rawHref = link.attr("href").trim().ifEmpty {
+                    el.selectFirst(".book_avatar a")?.attr("href")?.trim() ?: ""
+                }
                 val mangaUrl = if (rawHref.startsWith("http")) rawHref else "$base$rawHref"
 
                 val cover = el.selectFirst("img")?.attr("data-src")

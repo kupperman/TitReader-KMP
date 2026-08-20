@@ -31,9 +31,9 @@ object NovelSourceRegistry : SourceCatalog<NovelParser> {
             id = "DTRUYEN",
             name = "DTruyen",
             lang = "vi",
-            version = 1,
+            version = 2,
             type = ContentType.NOVEL,
-            domain = "https://dtruyen.com.vn"
+            domain = "https://truyencom.com"
         ),
         SourceInfo(
             id = "TANGTHUVIEN",

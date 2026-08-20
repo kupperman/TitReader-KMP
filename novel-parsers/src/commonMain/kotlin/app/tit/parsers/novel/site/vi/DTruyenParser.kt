@@ -13,9 +13,11 @@ class DTruyenParser(
 
     override val id: String = "DTRUYEN"
     override val name: String = "DTruyen"
-    override val domain: String = "https://dtruyen.com.vn"
+    override val domain: String get() = mirrors.first()
 
     private val mirrors = listOf(
+        "https://truyencom.com",
+        "https://dtruyen.net",
         "https://dtruyen.com.vn",
         "https://dtruyen.com"
     )

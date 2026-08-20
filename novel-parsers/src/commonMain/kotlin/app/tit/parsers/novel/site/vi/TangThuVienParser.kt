@@ -13,11 +13,13 @@ class TangThuVienParser(
 
     override val id: String = "TANGTHUVIEN"
     override val name: String = "TangThưViện"
-    override val domain: String = "https://truyen.tangthuvien.vn"
+    override val domain: String get() = mirrors.first()
 
     private val mirrors = listOf(
         "https://truyen.tangthuvien.vn",
-        "https://tangthuvien.net"
+        "https://tangthuvien.net",
+        "https://truyen.tangthuvien.net",
+        "https://truyen.tangthuvien.com"
     )
 
     override suspend fun getList(page: Int, filter: ContentFilter.NovelFilter): List<Content> {

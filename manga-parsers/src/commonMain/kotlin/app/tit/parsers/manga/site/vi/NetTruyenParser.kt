@@ -13,9 +13,12 @@ class NetTruyenParser(
 
     override val id: String = "NETTRUYEN"
     override val name: String = "NetTruyen"
-    override val domain: String = "https://nettruyena.com"
+    override val domain: String get() = mirrors.first()
 
     private val mirrors = listOf(
+        "https://nettruyenx.net",
+        "https://nettruyenx.com",
+        "https://nettruyenviet.com",
         "https://nettruyena.com",
         "https://nettruyenco.vn"
     )

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Màu nền lấy đúng từ ảnh icon gốc (nền trời đêm navy) -->
+    <color name="ic_launcher_background">#082E4C</color>
+</resources>
