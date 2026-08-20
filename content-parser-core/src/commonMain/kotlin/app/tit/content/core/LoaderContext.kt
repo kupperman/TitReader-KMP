@@ -18,14 +18,16 @@ class LoaderContext(
     private val defaultUserAgent = "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
     suspend fun getHtml(url: String, referer: String? = null, userAgent: String? = null): String {
-        return httpClient.get(url) {
-            header("User-Agent", userAgent ?: defaultUserAgent)
-            header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-            header("Accept-Language", "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7")
-            if (referer != null) {
-                header("Referer", referer)
-            }
-        }.bodyAsText()
+        return withTimeout(12_000L) {
+            httpClient.get(url) {
+                header("User-Agent", userAgent ?: defaultUserAgent)
+                header("Accept", "text/html,application/xhtml+xml,application/xml,application/json;q=0.9,*/*;q=0.8")
+                header("Accept-Language", "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7")
+                if (referer != null) {
+                    header("Referer", referer)
+                }
+            }.bodyAsText()
+        }
     }
 
     suspend fun parseHtml(url: String, referer: String? = null): Document {

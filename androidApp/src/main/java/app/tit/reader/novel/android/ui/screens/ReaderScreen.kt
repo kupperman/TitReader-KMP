@@ -113,16 +113,19 @@ fun ReaderScreen(
             isLoading = true
             errorMessage = null
             try {
-                if (type == ContentType.NOVEL) {
-                    val res = repository.getNovelChapterContent(chapter.sourceId, url)
-                    textContent = res
-                    currentChapterTitle = res.title
-                    currentChapterUrl = res.chapterUrl
-                } else {
-                    val res = repository.getMangaChapterContent(chapter.sourceId, url)
-                    imageContent = res
-                    currentChapterTitle = res.title
-                    currentChapterUrl = res.chapterUrl
+                val resolvedSourceId = chapter.sourceId.ifEmpty { contentMeta?.sourceId ?: "" }
+                kotlinx.coroutines.withTimeout(15_000L) {
+                    if (type == ContentType.NOVEL) {
+                        val res = repository.getNovelChapterContent(resolvedSourceId, url)
+                        textContent = res
+                        currentChapterTitle = res.title
+                        currentChapterUrl = res.chapterUrl
+                    } else {
+                        val res = repository.getMangaChapterContent(resolvedSourceId, url)
+                        imageContent = res
+                        currentChapterTitle = res.title
+                        currentChapterUrl = res.chapterUrl
+                    }
                 }
 
                 // Ghi nhận lịch sử đọc
@@ -136,9 +139,12 @@ fun ReaderScreen(
                         )
                     )
                 }
-                listState.scrollToItem(0)
+
+                if (type == ContentType.NOVEL) {
+                    runCatching { listState.scrollToItem(0) }
+                }
             } catch (e: Exception) {
-                errorMessage = e.message ?: "Lỗi tải nội dung chương"
+                errorMessage = e.message ?: "Lỗi tải nội dung chương (Timeout hoặc mạng gián đoạn)"
             } finally {
                 isLoading = false
             }
