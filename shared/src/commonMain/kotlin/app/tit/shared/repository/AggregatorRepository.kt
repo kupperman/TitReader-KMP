@@ -1,0 +1,134 @@
+package app.tit.shared.repository
+
+import app.tit.content.core.model.*
+import app.tit.shared.manager.DomainHealthCache
+import app.tit.shared.manager.SourceManager
+import app.tit.shared.model.SourceSearchResult
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+
+class AggregatorRepository(
+    val sourceManager: SourceManager = SourceManager(),
+    val healthCache: DomainHealthCache = DomainHealthCache()
+) {
+    companion object {
+        const val PER_SOURCE_TIMEOUT_MS = 8_000L
+    }
+
+    /**
+     * Tìm kiếm song song dạng Streaming (Flow) trên các nguồn Novel được bật.
+     * UI nhận kết quả từng nguồn ngay khi hoàn tất mà không phải chờ nguồn chậm nhất.
+     */
+    fun searchNovelsStreaming(
+        query: String,
+        enabledSourceIds: List<String>? = null,
+        page: Int = 1
+    ): Flow<SourceSearchResult> = channelFlow {
+        val allSources = sourceManager.getSources(ContentType.NOVEL)
+        val targetSources = if (enabledSourceIds != null) {
+            allSources.filter { it.id in enabledSourceIds }
+        } else {
+            allSources
+        }
+
+        targetSources.forEach { sourceInfo ->
+            launch {
+                if (healthCache.isSkippable(sourceInfo.id)) {
+                    send(SourceSearchResult.Skipped(sourceInfo))
+                    return@launch
+                }
+
+                val parser = sourceManager.getNovelParser(sourceInfo.id)
+                val result = withTimeoutOrNull(PER_SOURCE_TIMEOUT_MS) {
+                    runCatching { parser.search(query, page) }
+                }
+
+                when {
+                    result == null -> {
+                        healthCache.markDead(sourceInfo.id)
+                        send(SourceSearchResult.TimedOut(sourceInfo))
+                    }
+                    result.isFailure -> {
+                        healthCache.markDead(sourceInfo.id)
+                        send(SourceSearchResult.Failed(sourceInfo, result.exceptionOrNull()))
+                    }
+                    else -> {
+                        healthCache.markHealthy(sourceInfo.id)
+                        send(SourceSearchResult.Success(sourceInfo, result.getOrThrow()))
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Tìm kiếm song song dạng Streaming (Flow) trên các nguồn Manga được bật.
+     */
+    fun searchMangaStreaming(
+        query: String,
+        enabledSourceIds: List<String>? = null,
+        page: Int = 1
+    ): Flow<SourceSearchResult> = channelFlow {
+        val allSources = sourceManager.getSources(ContentType.MANGA)
+        val targetSources = if (enabledSourceIds != null) {
+            allSources.filter { it.id in enabledSourceIds }
+        } else {
+            allSources
+        }
+
+        targetSources.forEach { sourceInfo ->
+            launch {
+                if (healthCache.isSkippable(sourceInfo.id)) {
+                    send(SourceSearchResult.Skipped(sourceInfo))
+                    return@launch
+                }
+
+                val parser = sourceManager.getMangaParser(sourceInfo.id)
+                val result = withTimeoutOrNull(PER_SOURCE_TIMEOUT_MS) {
+                    runCatching { parser.search(query, page) }
+                }
+
+                when {
+                    result == null -> {
+                        healthCache.markDead(sourceInfo.id)
+                        send(SourceSearchResult.TimedOut(sourceInfo))
+                    }
+                    result.isFailure -> {
+                        healthCache.markDead(sourceInfo.id)
+                        send(SourceSearchResult.Failed(sourceInfo, result.exceptionOrNull()))
+                    }
+                    else -> {
+                        healthCache.markHealthy(sourceInfo.id)
+                        send(SourceSearchResult.Success(sourceInfo, result.getOrThrow()))
+                    }
+                }
+            }
+        }
+    }
+
+    suspend fun getNovelCatalog(sourceId: String, page: Int, filter: ContentFilter.NovelFilter): List<Content> {
+        return sourceManager.getNovelParser(sourceId).getList(page, filter)
+    }
+
+    suspend fun getMangaCatalog(sourceId: String, page: Int, filter: ContentFilter.MangaFilter): List<Content> {
+        return sourceManager.getMangaParser(sourceId).getList(page, filter)
+    }
+
+    suspend fun getNovelDetails(sourceId: String, novelUrl: String): ContentDetails {
+        return sourceManager.getNovelParser(sourceId).getDetails(novelUrl)
+    }
+
+    suspend fun getMangaDetails(sourceId: String, mangaUrl: String): ContentDetails {
+        return sourceManager.getMangaParser(sourceId).getDetails(mangaUrl)
+    }
+
+    suspend fun getNovelChapterContent(sourceId: String, chapterUrl: String): ChapterContent.Text {
+        return sourceManager.getNovelParser(sourceId).getChapterContent(chapterUrl)
+    }
+
+    suspend fun getMangaChapterContent(sourceId: String, chapterUrl: String): ChapterContent.ImagePages {
+        return sourceManager.getMangaParser(sourceId).getChapterContent(chapterUrl)
+    }
+}
