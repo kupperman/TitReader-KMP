@@ -23,7 +23,7 @@ object MangaSourceRegistry : SourceCatalog<MangaParser> {
     private val sourceInfoList: List<SourceInfo> = listOf(
         SourceInfo(
             id = "OTRUYEN",
-            name = "Ổ Truyện (API)",
+            name = "Ổ Truyện",
             lang = "vi",
             version = 1,
             type = ContentType.MANGA,

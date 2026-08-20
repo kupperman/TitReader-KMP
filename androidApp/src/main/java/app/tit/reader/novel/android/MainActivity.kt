@@ -1,4 +1,4 @@
-﻿package app.tit.reader.novel.android
+package app.tit.reader.novel.android
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -49,10 +49,22 @@ class MainActivity : ComponentActivity() {
         val okHttpClient = OkHttpClient.Builder()
             .addInterceptor { chain ->
                 val original = chain.request()
+                val host = original.url.host.lowercase()
+                val referer = when {
+                    host.contains("nettruyen") || host.contains("kptackpte") || host.contains("ccnnts") -> "https://nettruyenx.net/"
+                    host.contains("truyenqq") || host.contains("hinhhinh") -> "https://truyenqqko.com/"
+                    host.contains("foxtruyen") || host.contains("hinhgg") -> "https://foxtruyen2.com/"
+                    host.contains("tangthuvien") -> "https://truyen.tangthuvien.vn/"
+                    host.contains("truyenfull") -> "https://truyenfull.live/"
+                    host.contains("truyenchu") -> "https://truyenchu.net/"
+                    host.contains("dtruyen") -> "https://dtruyen.com.vn/"
+                    else -> "${original.url.scheme}://${original.url.host}/"
+                }
+
                 val request = original.newBuilder()
                     .header("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
                     .header("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
-                    .header("Referer", "${original.url.scheme}://${original.url.host}/")
+                    .header("Referer", referer)
                     .build()
                 chain.proceed(request)
             }

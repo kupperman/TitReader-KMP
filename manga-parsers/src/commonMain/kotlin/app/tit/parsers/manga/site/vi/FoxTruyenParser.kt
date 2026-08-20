@@ -1,4 +1,4 @@
-﻿package app.tit.parsers.manga.site.vi
+package app.tit.parsers.manga.site.vi
 
 import app.tit.content.core.LoaderContext
 import app.tit.content.core.MangaParser
@@ -15,31 +15,27 @@ class FoxTruyenParser(
     override val domain: String get() = mirrors.first()
 
     private val mirrors: List<String> = listOf(
-        "https://foxtruyen2.com",
-        "https://foxtruyen.com"
+        "https://foxtruyen2.com"
     )
 
     override suspend fun getList(page: Int, filter: ContentFilter.MangaFilter): List<Content> {
         val path = when (filter.order) {
-            SortOrder.HOT -> if (page == 1) "/the-loai/top-all.html" else "/the-loai/top-all/trang-$page.html"
-            SortOrder.COMPLETED -> if (page == 1) "/the-loai/hoan-thanh.html" else "/the-loai/hoan-thanh/trang-$page.html"
-            SortOrder.LATEST -> if (page == 1) "/" else "/trang-$page.html"
+            SortOrder.HOT -> if (page == 1) "/top-tuan.html" else "/top-tuan/trang-$page.html"
+            SortOrder.COMPLETED -> if (page == 1) "/top-binh-chon.html" else "/top-binh-chon/trang-$page.html"
+            SortOrder.LATEST -> if (page == 1) "/truyen-moi-cap-nhat.html" else "/truyen-moi-cap-nhat/trang-$page.html"
         }
 
         val (doc, base) = context.parseHtmlRace(mirrors, path)
         val list = mutableListOf<Content>()
 
-        doc.select(".list_grid li, ul.grid > li, .story-item, .item, .book_avatar").forEach { el ->
-            val link = el.selectFirst(".book_info h3 a")
-                ?: el.selectFirst(".book_info a")
-                ?: el.selectFirst("h3 a, .title a, a.story-title")
-                ?: el.selectFirst(".book_avatar a")
+        doc.select(".list_item_home .item_home, .item_home, .list_grid li, ul.grid > li, .story-item, .item, .book_avatar").forEach { el ->
+            val link = el.selectFirst(".title-book, .image-cover a, .book_info h3 a, .book_info a, h3 a, .title a, a.story-title, .book_avatar a")
 
             if (link != null) {
                 val title = link.text().trim().ifEmpty { link.attr("title").trim() }
                     .ifEmpty { el.selectFirst("img")?.attr("alt")?.trim() ?: "" }
                 val rawHref = link.attr("href").trim().ifEmpty {
-                    el.selectFirst(".book_avatar a")?.attr("href")?.trim() ?: ""
+                    el.selectFirst(".image-cover a")?.attr("href")?.trim() ?: ""
                 }
                 val mangaUrl = if (rawHref.startsWith("http")) rawHref else "$base$rawHref"
 

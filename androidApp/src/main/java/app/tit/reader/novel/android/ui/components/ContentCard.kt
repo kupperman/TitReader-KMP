@@ -42,24 +42,19 @@ fun ContentCard(
                 .background(Color(0xFFE8E0D5)),
             contentAlignment = Alignment.Center
         ) {
-            var isImageLoaded by remember(content.coverUrl) { mutableStateOf(false) }
+            Text(
+                text = content.title.take(1).uppercase(),
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1E3A5F)
+            )
 
             if (!content.coverUrl.isNullOrEmpty()) {
                 AsyncImage(
                     model = content.coverUrl,
                     contentDescription = content.title,
                     contentScale = ContentScale.Crop,
-                    onSuccess = { isImageLoaded = true },
                     modifier = Modifier.fillMaxSize()
-                )
-            }
-
-            if (content.coverUrl.isNullOrEmpty() || !isImageLoaded) {
-                Text(
-                    text = content.title.take(1).uppercase(),
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E3A5F)
                 )
             }
 

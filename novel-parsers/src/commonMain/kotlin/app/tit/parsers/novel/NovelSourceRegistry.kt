@@ -47,7 +47,7 @@ object NovelSourceRegistry : SourceCatalog<NovelParser> {
         ),
         SourceInfo(
             id = "TANGTHUVIEN",
-            name = "TangThưViện",
+            name = "Tàng Thư Viện",
             lang = "vi",
             version = 1,
             type = ContentType.NOVEL,
