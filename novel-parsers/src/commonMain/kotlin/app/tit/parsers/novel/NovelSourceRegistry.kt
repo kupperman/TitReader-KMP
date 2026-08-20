@@ -33,7 +33,7 @@ object NovelSourceRegistry : SourceCatalog<NovelParser> {
             lang = "vi",
             version = 2,
             type = ContentType.NOVEL,
-            domain = "https://truyencom.com"
+            domain = "https://dtruyen.com.vn"
         ),
         SourceInfo(
             id = "TANGTHUVIEN",

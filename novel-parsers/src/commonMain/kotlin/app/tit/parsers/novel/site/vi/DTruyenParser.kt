@@ -16,10 +16,9 @@ class DTruyenParser(
     override val domain: String get() = mirrors.first()
 
     private val mirrors = listOf(
-        "https://truyencom.com",
-        "https://dtruyen.net",
         "https://dtruyen.com.vn",
-        "https://dtruyen.com"
+        "https://dtruyen.com",
+        "https://dtruyen.net"
     )
 
     override suspend fun getList(page: Int, filter: ContentFilter.NovelFilter): List<Content> {
@@ -39,8 +38,16 @@ class DTruyenParser(
                 val rawHref = link.attr("href").trim()
                 val novelUrl = if (rawHref.startsWith("http")) rawHref else "$base$rawHref"
 
-                val cover = el.selectFirst("img")?.attr("data-src")
-                    ?: el.selectFirst("img")?.attr("src")
+                val cover = el.selectFirst("img")?.let { img ->
+                    img.attr("data-src").ifEmpty { img.attr("data-original") }.ifEmpty { img.attr("src") }
+                }?.let { raw ->
+                    when {
+                        raw.startsWith("//") -> "https:$raw"
+                        raw.startsWith("http") -> raw
+                        raw.isNotEmpty() -> "$base$raw"
+                        else -> null
+                    }
+                }
 
                 val author = el.selectFirst(".author, .story-author")?.text()?.trim()
                 val latestChap = el.selectFirst(".chapter-title, .chapter")?.text()?.trim()
@@ -77,8 +84,16 @@ class DTruyenParser(
                 val rawHref = link.attr("href").trim()
                 val novelUrl = if (rawHref.startsWith("http")) rawHref else "$base$rawHref"
 
-                val cover = el.selectFirst("img")?.attr("data-src")
-                    ?: el.selectFirst("img")?.attr("src")
+                val cover = el.selectFirst("img")?.let { img ->
+                    img.attr("data-src").ifEmpty { img.attr("data-original") }.ifEmpty { img.attr("src") }
+                }?.let { raw ->
+                    when {
+                        raw.startsWith("//") -> "https:$raw"
+                        raw.startsWith("http") -> raw
+                        raw.isNotEmpty() -> "$base$raw"
+                        else -> null
+                    }
+                }
 
                 val author = el.selectFirst(".author, .story-author")?.text()?.trim()
                 val latestChap = el.selectFirst(".chapter-title, .chapter")?.text()?.trim()

@@ -35,9 +35,19 @@ class NetTruyenParser(
                 val rawHref = link.attr("href").trim()
                 val mangaUrl = if (rawHref.startsWith("http")) rawHref else "$base$rawHref"
 
-                val cover = el.selectFirst("img")?.attr("data-src")
-                    ?: el.selectFirst("img")?.attr("data-original")
-                    ?: el.selectFirst("img")?.attr("src")
+                val cover = el.selectFirst("img")?.let { img ->
+                    img.attr("data-original")
+                        .ifEmpty { img.attr("data-src") }
+                        .ifEmpty { img.attr("data-retries") }
+                        .ifEmpty { img.attr("src") }
+                }?.let { raw ->
+                    when {
+                        raw.startsWith("//") -> "https:$raw"
+                        raw.startsWith("http") -> raw
+                        raw.isNotEmpty() && !raw.startsWith("/assets/") -> "$base$raw"
+                        else -> null
+                    }
+                }
 
                 val latestChap = el.selectFirst(".chapter a, .comic-item .chapter")?.text()?.trim()
 
@@ -72,9 +82,19 @@ class NetTruyenParser(
                 val rawHref = link.attr("href").trim()
                 val mangaUrl = if (rawHref.startsWith("http")) rawHref else "$base$rawHref"
 
-                val cover = el.selectFirst("img")?.attr("data-src")
-                    ?: el.selectFirst("img")?.attr("data-original")
-                    ?: el.selectFirst("img")?.attr("src")
+                val cover = el.selectFirst("img")?.let { img ->
+                    img.attr("data-original")
+                        .ifEmpty { img.attr("data-src") }
+                        .ifEmpty { img.attr("data-retries") }
+                        .ifEmpty { img.attr("src") }
+                }?.let { raw ->
+                    when {
+                        raw.startsWith("//") -> "https:$raw"
+                        raw.startsWith("http") -> raw
+                        raw.isNotEmpty() && !raw.startsWith("/assets/") -> "$base$raw"
+                        else -> null
+                    }
+                }
 
                 val latestChap = el.selectFirst(".chapter a")?.text()?.trim()
 

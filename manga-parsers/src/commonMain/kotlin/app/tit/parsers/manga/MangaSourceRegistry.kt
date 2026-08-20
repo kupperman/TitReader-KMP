@@ -6,17 +6,27 @@ import app.tit.content.core.SourceCatalog
 import app.tit.content.core.model.ContentType
 import app.tit.content.core.model.SourceInfo
 import app.tit.parsers.manga.site.vi.NetTruyenParser
+import app.tit.parsers.manga.site.vi.OTruyenParser
 import app.tit.parsers.manga.site.vi.TruyenQQParser
 
 object MangaSourceRegistry : SourceCatalog<MangaParser> {
     override val type: ContentType = ContentType.MANGA
 
     private val sources: Map<String, (LoaderContext) -> MangaParser> = mapOf(
+        "OTRUYEN" to { ctx -> OTruyenParser(ctx) },
         "TRUYENQQ" to { ctx -> TruyenQQParser(ctx) },
         "NETTRUYEN" to { ctx -> NetTruyenParser(ctx) }
     )
 
     private val sourceInfoList: List<SourceInfo> = listOf(
+        SourceInfo(
+            id = "OTRUYEN",
+            name = "Ổ Truyện (API)",
+            lang = "vi",
+            version = 1,
+            type = ContentType.MANGA,
+            domain = "https://otruyenapi.com"
+        ),
         SourceInfo(
             id = "TRUYENQQ",
             name = "TruyệnQQ",

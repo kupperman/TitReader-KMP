@@ -39,11 +39,19 @@ class TruyenFullParser(
                 val rawHref = titleEl.attr("href").trim()
                 val novelUrl = if (rawHref.startsWith("http")) rawHref else "$base$rawHref"
 
-                val cover = el.selectFirst("[data-image]")?.attr("data-image")
-                    ?: el.selectFirst("[data-desk-image]")?.attr("data-desk-image")
-                    ?: el.selectFirst(".lazy-image")?.attr("data-image")
-                    ?: el.selectFirst("img")?.attr("data-src")
-                    ?: el.selectFirst("img")?.attr("src")
+                val cover = (el.selectFirst("[data-image]")?.attr("data-image")?.takeIf { it.isNotEmpty() }
+                    ?: el.selectFirst("[data-desk-image]")?.attr("data-desk-image")?.takeIf { it.isNotEmpty() }
+                    ?: el.selectFirst(".lazy-image")?.attr("data-image")?.takeIf { it.isNotEmpty() }
+                    ?: el.selectFirst("img")?.attr("data-src")?.takeIf { it.isNotEmpty() }
+                    ?: el.selectFirst("img")?.attr("src")?.takeIf { it.isNotEmpty() })
+                    ?.let { raw ->
+                        when {
+                            raw.startsWith("//") -> "https:$raw"
+                            raw.startsWith("http") -> raw
+                            raw.isNotEmpty() -> "$base$raw"
+                            else -> null
+                        }
+                    }
 
                 val author = el.selectFirst(".author")?.text()?.trim()
                 val latestChap = el.selectFirst(".text-info")?.text()?.trim()
@@ -80,11 +88,19 @@ class TruyenFullParser(
                 val rawHref = titleEl.attr("href").trim()
                 val novelUrl = if (rawHref.startsWith("http")) rawHref else "$base$rawHref"
 
-                val cover = el.selectFirst("[data-image]")?.attr("data-image")
-                    ?: el.selectFirst("[data-desk-image]")?.attr("data-desk-image")
-                    ?: el.selectFirst("img")?.attr("data-src")
-                    ?: el.selectFirst("img")?.attr("src")
-
+                val cover = (el.selectFirst("[data-image]")?.attr("data-image")?.takeIf { it.isNotEmpty() }
+                    ?: el.selectFirst("[data-desk-image]")?.attr("data-desk-image")?.takeIf { it.isNotEmpty() }
+                    ?: el.selectFirst(".lazy-image")?.attr("data-image")?.takeIf { it.isNotEmpty() }
+                    ?: el.selectFirst("img")?.attr("data-src")?.takeIf { it.isNotEmpty() }
+                    ?: el.selectFirst("img")?.attr("src")?.takeIf { it.isNotEmpty() })
+                    ?.let { raw ->
+                        when {
+                            raw.startsWith("//") -> "https:$raw"
+                            raw.startsWith("http") -> raw
+                            raw.isNotEmpty() -> "$base$raw"
+                            else -> null
+                        }
+                    }
                 val author = el.selectFirst(".author")?.text()?.trim()
                 val latestChap = el.selectFirst(".text-info")?.text()?.trim()
 

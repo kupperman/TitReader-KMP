@@ -43,7 +43,7 @@ fun HomeScreen(
     val mangaSources = remember { repository.sourceManager.getSources(ContentType.MANGA) }
 
     var selectedNovelSourceId by remember { mutableStateOf(novelSources.firstOrNull()?.id ?: "TRUYENFULL") }
-    var selectedMangaSourceId by remember { mutableStateOf(mangaSources.firstOrNull()?.id ?: "NETTRUYEN") }
+    var selectedMangaSourceId by remember { mutableStateOf(mangaSources.firstOrNull()?.id ?: "OTRUYEN") }
 
     var selectedOrder by remember { mutableStateOf(SortOrder.LATEST) }
     var page by remember { mutableIntStateOf(1) }

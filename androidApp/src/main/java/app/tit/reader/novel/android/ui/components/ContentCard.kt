@@ -5,7 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,14 +42,19 @@ fun ContentCard(
                 .background(Color(0xFFE8E0D5)),
             contentAlignment = Alignment.Center
         ) {
+            var isImageLoaded by remember(content.coverUrl) { mutableStateOf(false) }
+
             if (!content.coverUrl.isNullOrEmpty()) {
                 AsyncImage(
                     model = content.coverUrl,
                     contentDescription = content.title,
                     contentScale = ContentScale.Crop,
+                    onSuccess = { isImageLoaded = true },
                     modifier = Modifier.fillMaxSize()
                 )
-            } else {
+            }
+
+            if (content.coverUrl.isNullOrEmpty() || !isImageLoaded) {
                 Text(
                     text = content.title.take(1).uppercase(),
                     fontSize = 28.sp,

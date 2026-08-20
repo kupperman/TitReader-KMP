@@ -14,6 +14,10 @@ import app.tit.reader.novel.android.ui.screens.ReaderScreen
 import app.tit.reader.novel.android.ui.screens.SearchScreen
 import app.tit.reader.novel.android.ui.theme.TitReaderTheme
 
+import coil.Coil
+import coil.ImageLoader
+import okhttp3.OkHttpClient
+
 sealed class Screen {
     object Home : Screen()
     data class Search(val type: ContentType) : Screen()
@@ -25,6 +29,24 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        val okHttpClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val original = chain.request()
+                val request = original.newBuilder()
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
+                    .header("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+                    .header("Referer", "${original.url.scheme}://${original.url.host}/")
+                    .build()
+                chain.proceed(request)
+            }
+            .build()
+
+        val imageLoader = ImageLoader.Builder(this)
+            .okHttpClient(okHttpClient)
+            .crossfade(true)
+            .build()
+        Coil.setImageLoader(imageLoader)
 
         setContent {
             TitReaderTheme {

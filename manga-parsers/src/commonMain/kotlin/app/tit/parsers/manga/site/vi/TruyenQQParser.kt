@@ -48,9 +48,19 @@ class TruyenQQParser(
                 }
                 val mangaUrl = if (rawHref.startsWith("http")) rawHref else "$base$rawHref"
 
-                val cover = el.selectFirst("img")?.attr("data-src")
-                    ?: el.selectFirst("img")?.attr("data-original")
-                    ?: el.selectFirst("img")?.attr("src")
+                val cover = el.selectFirst("img")?.let { img ->
+                    img.attr("data-src")
+                        .ifEmpty { img.attr("data-original") }
+                        .ifEmpty { img.attr("data-fb") }
+                        .ifEmpty { img.attr("src") }
+                }?.let { raw ->
+                    when {
+                        raw.startsWith("//") -> "https:$raw"
+                        raw.startsWith("http") -> raw
+                        raw.isNotEmpty() && !raw.contains("no_image") -> "$base$raw"
+                        else -> null
+                    }
+                }
 
                 val latestChap = el.selectFirst(".last_chapter a, .chapter a, .story-chapter a")?.text()?.trim()
 
@@ -92,9 +102,19 @@ class TruyenQQParser(
                 }
                 val mangaUrl = if (rawHref.startsWith("http")) rawHref else "$base$rawHref"
 
-                val cover = el.selectFirst("img")?.attr("data-src")
-                    ?: el.selectFirst("img")?.attr("data-original")
-                    ?: el.selectFirst("img")?.attr("src")
+                val cover = el.selectFirst("img")?.let { img ->
+                    img.attr("data-src")
+                        .ifEmpty { img.attr("data-original") }
+                        .ifEmpty { img.attr("data-fb") }
+                        .ifEmpty { img.attr("src") }
+                }?.let { raw ->
+                    when {
+                        raw.startsWith("//") -> "https:$raw"
+                        raw.startsWith("http") -> raw
+                        raw.isNotEmpty() && !raw.contains("no_image") -> "$base$raw"
+                        else -> null
+                    }
+                }
 
                 val latestChap = el.selectFirst(".last_chapter a, .chapter a")?.text()?.trim()
 
