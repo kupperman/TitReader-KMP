@@ -11,7 +11,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 class AggregatorRepository(
     val sourceManager: SourceManager = SourceManager(),
-    val healthCache: DomainHealthCache = DomainHealthCache()
+    val healthCache: DomainHealthCache = DomainHealthCache(),
+    val storage: app.tit.shared.storage.LibraryStorage = app.tit.shared.storage.LibraryStorage(app.tit.shared.storage.InMemoryKeyValueDriver())
 ) {
     companion object {
         const val PER_SOURCE_TIMEOUT_MS = 8_000L
@@ -131,4 +132,41 @@ class AggregatorRepository(
     suspend fun getMangaChapterContent(sourceId: String, chapterUrl: String): ChapterContent.ImagePages {
         return sourceManager.getMangaParser(sourceId).getChapterContent(chapterUrl)
     }
+
+    // --- Library & Storage Helpers ---
+    fun isBookFavorite(url: String): Boolean = storage.isBookInLibrary(url)
+
+    fun toggleBookFavorite(content: Content, categoryId: String = app.tit.shared.model.BookCategory.FAVORITE.id): Boolean {
+        return if (storage.isBookInLibrary(content.url)) {
+            storage.removeBookFromLibrary(content.url)
+            false
+        } else {
+            storage.saveBookToLibrary(
+                app.tit.shared.model.LibraryBook(
+                    content = content,
+                    categoryId = categoryId
+                )
+            )
+            true
+        }
+    }
+
+    fun getLibraryBooks(categoryId: String? = null): List<app.tit.shared.model.LibraryBook> {
+        val all = storage.getLibraryBooks()
+        return if (categoryId == null || categoryId == app.tit.shared.model.BookCategory.ALL.id) all else all.filter { it.categoryId == categoryId }
+    }
+
+    fun removeBookFromLibrary(contentUrl: String) = storage.removeBookFromLibrary(contentUrl)
+
+    fun updateBookCategory(contentUrl: String, categoryId: String) = storage.updateBookCategory(contentUrl, categoryId)
+
+    fun getReadingHistory(): List<app.tit.shared.model.ReadingHistoryItem> = storage.getReadingHistory()
+
+    fun recordReadingHistory(item: app.tit.shared.model.ReadingHistoryItem) = storage.recordHistory(item)
+
+    fun isChapterRead(url: String): Boolean = storage.isChapterRead(url)
+
+    fun getReaderSettings(): app.tit.shared.model.ReaderSettings = storage.getReaderSettings()
+
+    fun saveReaderSettings(settings: app.tit.shared.model.ReaderSettings) = storage.saveReaderSettings(settings)
 }

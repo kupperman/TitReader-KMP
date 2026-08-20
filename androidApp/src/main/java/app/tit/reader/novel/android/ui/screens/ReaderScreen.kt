@@ -2,58 +2,69 @@ package app.tit.reader.novel.android.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.FormatSize
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.tit.content.core.model.Chapter
 import app.tit.content.core.model.ChapterContent
+import app.tit.content.core.model.Content
 import app.tit.content.core.model.ContentType
+import app.tit.reader.novel.android.ui.components.ReaderSettingsSheet
 import app.tit.reader.novel.android.ui.theme.AccentOrange
+import app.tit.shared.model.MangaReadingMode
+import app.tit.shared.model.NovelThemeType
+import app.tit.shared.model.ReaderSettings
+import app.tit.shared.model.ReadingHistoryItem
 import app.tit.shared.repository.AggregatorRepository
 import coil.compose.AsyncImage
-import kotlinx.coroutines.launch
-
-enum class ReaderTheme(val bg: Color, val text: Color, val nameLabel: String) {
-    LIGHT(Color(0xFFFAF6EE), Color(0xFF1E1914), "Sáng"),
-    SEPIA(Color(0xFFEEE4CC), Color(0xFF3B3326), "Vàng"),
-    DARK(Color(0xFF141F2D), Color(0xFFE2DAD0), "Tối"),
-    BLACK(Color(0xFF000000), Color(0xFFCCCCCC), "Đen")
-}
 
 @Composable
 fun ReaderScreen(
     chapter: Chapter,
     type: ContentType,
+    contentMeta: Content? = null,
+    repository: AggregatorRepository,
     onBackClick: () -> Unit
 ) {
-    val repository = remember { AggregatorRepository() }
     val scope = rememberCoroutineScope()
 
     var currentChapterUrl by remember { mutableStateOf(chapter.url) }
+    var currentChapterTitle by remember { mutableStateOf(chapter.title) }
     var textContent by remember { mutableStateOf<ChapterContent.Text?>(null) }
     var imageContent by remember { mutableStateOf<ChapterContent.ImagePages?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    var fontSize by remember { mutableFloatStateOf(18f) }
-    var readerTheme by remember { mutableStateOf(ReaderTheme.LIGHT) }
+    var readerSettings by remember { mutableStateOf(repository.getReaderSettings()) }
+    var showSettingsSheet by remember { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(false) }
 
-    fun loadChapter(url: String) {
+    fun loadChapter(url: String, title: String = "") {
         currentChapterUrl = url
+        if (title.isNotEmpty()) currentChapterTitle = title
         isLoading = true
         errorMessage = null
         scope.launch {
@@ -67,9 +78,25 @@ fun ReaderScreen(
                 }
                 if (fetched != null) {
                     if (type == ContentType.NOVEL) {
-                        textContent = fetched as ChapterContent.Text
+                        val novelResult = fetched as ChapterContent.Text
+                        textContent = novelResult
+                        currentChapterTitle = novelResult.title
                     } else {
-                        imageContent = fetched as ChapterContent.ImagePages
+                        val mangaResult = fetched as ChapterContent.ImagePages
+                        imageContent = mangaResult
+                        currentChapterTitle = mangaResult.title
+                    }
+
+                    // Tự động lưu lịch sử đọc
+                    if (contentMeta != null) {
+                        repository.recordReadingHistory(
+                            ReadingHistoryItem(
+                                content = contentMeta,
+                                chapterUrl = url,
+                                chapterTitle = currentChapterTitle,
+                                readAt = System.currentTimeMillis()
+                            )
+                        )
                     }
                 } else {
                     errorMessage = "Quá thời gian tải chương (Timeout). Vui lòng kiểm tra kết nối mạng và thử lại."
@@ -86,8 +113,34 @@ fun ReaderScreen(
         loadChapter(currentChapterUrl)
     }
 
-    val currentThemeColor = if (type == ContentType.NOVEL) readerTheme.bg else Color.Black
-    val currentTextColor = if (type == ContentType.NOVEL) readerTheme.text else Color.White
+    // Determine colors based on NovelThemeType
+    val (bgColor, textColor) = when (readerSettings.novelTheme) {
+        NovelThemeType.LIGHT -> Color(0xFFFAF6EE) to Color(0xFF1E1914)
+        NovelThemeType.SEPIA -> Color(0xFFEEE4CC) to Color(0xFF3B3326)
+        NovelThemeType.DARK -> Color(0xFF1E293B) to Color(0xFFE2E8F0)
+        NovelThemeType.AMOLED -> Color(0xFF000000) to Color(0xFFD1D5DB)
+    }
+
+    val fontFamily = when (readerSettings.novelFontFamily) {
+        "SERIF" -> FontFamily.Serif
+        "MONOSPACE" -> FontFamily.Monospace
+        "CURSIVE" -> FontFamily.Cursive
+        else -> FontFamily.Default
+    }
+
+    val listState = rememberLazyListState()
+
+    if (showSettingsSheet) {
+        ReaderSettingsSheet(
+            contentType = type,
+            currentSettings = readerSettings,
+            onSettingsChanged = { newSettings ->
+                readerSettings = newSettings
+                repository.saveReaderSettings(newSettings)
+            },
+            onDismiss = { showSettingsSheet = false }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -95,219 +148,188 @@ fun ReaderScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(currentThemeColor)
+                        .background(if (readerSettings.novelTheme == NovelThemeType.AMOLED) Color(0xFF111111) else Color(0xFFF3EFE6))
                         .padding(horizontal = 8.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại", tint = currentTextColor)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại", tint = textColor)
                     }
                     Text(
-                        text = textContent?.title ?: imageContent?.title ?: chapter.title,
-                        color = currentTextColor,
-                        fontSize = 14.sp,
+                        text = currentChapterTitle,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
+                        color = textColor,
                         maxLines = 1,
                         modifier = Modifier.weight(1f)
                     )
+                    IconButton(onClick = { showSettingsSheet = true }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Cài đặt đọc", tint = textColor)
+                    }
                 }
             }
         },
         bottomBar = {
-            if (showControls && type == ContentType.NOVEL) {
-                Column(
+            if (showControls) {
+                val prevUrl = if (type == ContentType.NOVEL) textContent?.prevChapterUrl else imageContent?.prevChapterUrl
+                val nextUrl = if (type == ContentType.NOVEL) textContent?.nextChapterUrl else imageContent?.nextChapterUrl
+
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(readerTheme.bg)
-                        .padding(16.dp)
+                        .background(if (readerSettings.novelTheme == NovelThemeType.AMOLED) Color(0xFF111111) else Color(0xFFF3EFE6))
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Button(
+                        onClick = { prevUrl?.let { loadChapter(it) } },
+                        enabled = !prevUrl.isNullOrEmpty(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentOrange),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Cỡ chữ: ${fontSize.toInt()}pt", color = readerTheme.text, fontSize = 13.sp)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = { fontSize = (fontSize - 2).coerceAtLeast(12f) },
-                                colors = ButtonDefaults.buttonColors(containerColor = AccentOrange),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                            ) {
-                                Text("A-")
-                            }
-                            Button(
-                                onClick = { fontSize = (fontSize + 2).coerceAtMost(32f) },
-                                colors = ButtonDefaults.buttonColors(containerColor = AccentOrange),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                            ) {
-                                Text("A+")
-                            }
-                        }
+                        Icon(Icons.Default.ChevronLeft, contentDescription = null)
+                        Text("Chương trước")
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Button(
+                        onClick = { nextUrl?.let { loadChapter(it) } },
+                        enabled = !nextUrl.isNullOrEmpty(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentOrange),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        ReaderTheme.entries.forEach { th ->
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(th.bg)
-                                    .clickable { readerTheme = th }
-                                    .padding(vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = th.nameLabel,
-                                    color = th.text,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (readerTheme == th) FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        }
+                        Text("Chương sau")
+                        Icon(Icons.Default.ChevronRight, contentDescription = null)
                     }
                 }
             }
         },
-        containerColor = currentThemeColor
+        containerColor = if (type == ContentType.NOVEL) bgColor else Color(0xFF121212)
     ) { innerPadding ->
-        if (isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = AccentOrange)
-            }
-        } else if (errorMessage != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = "⚠ $errorMessage", color = Color.Red)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(onClick = { loadChapter(currentChapterUrl) }, colors = ButtonDefaults.buttonColors(containerColor = AccentOrange)) {
-                        Text("Thử lại")
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    showControls = !showControls
+                }
+        ) {
+            if (isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = AccentOrange)
+                }
+            } else if (errorMessage != null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                        Text(text = "⚠ $errorMessage", color = Color.Red, fontSize = 14.sp)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = { loadChapter(currentChapterUrl) },
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentOrange)
+                        ) {
+                            Text("Thử lại")
+                        }
                     }
                 }
-            }
-        } else {
-            if (type == ContentType.NOVEL) {
-                val txt = textContent ?: return@Scaffold
+            } else if (type == ContentType.NOVEL && textContent != null) {
+                // --- NOVEL TEXT VIEW ---
+                val txt = textContent!!
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .clickable { showControls = !showControls }
-                        .padding(innerPadding)
                         .padding(horizontal = 18.dp)
                 ) {
                     item {
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
                             text = txt.title,
-                            fontSize = (fontSize + 4).sp,
+                            fontSize = (readerSettings.novelFontSize + 4).sp,
                             fontWeight = FontWeight.Bold,
-                            color = readerTheme.text,
-                            lineHeight = (fontSize + 10).sp,
-                            modifier = Modifier.padding(bottom = 20.dp)
+                            color = textColor,
+                            fontFamily = fontFamily
                         )
-                    }
-
-                    items(txt.paragraphs) { paragraph ->
-                        Text(
-                            text = paragraph,
-                            fontSize = fontSize.sp,
-                            color = readerTheme.text,
-                            lineHeight = (fontSize * 1.55f).sp,
-                            modifier = Modifier.padding(bottom = 14.dp)
-                        )
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
 
                     item {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 36.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            val prevUrl = txt.prevChapterUrl
-                            if (!prevUrl.isNullOrEmpty()) {
-                                Button(
-                                    onClick = { loadChapter(prevUrl) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = AccentOrange)
-                                ) {
-                                    Text("‹ Chương trước")
-                                }
-                            } else {
-                                Spacer(modifier = Modifier.width(1.dp))
-                            }
+                        Text(
+                            text = txt.text,
+                            fontSize = readerSettings.novelFontSize.sp,
+                            color = textColor,
+                            lineHeight = (readerSettings.novelFontSize * readerSettings.novelLineHeightMultiplier).sp,
+                            fontFamily = fontFamily
+                        )
+                        Spacer(modifier = Modifier.height(36.dp))
+                    }
+                }
+            } else if (type == ContentType.MANGA && imageContent != null) {
+                // --- MANGA IMAGE VIEW ---
+                val images = imageContent!!.imageUrls
 
-                            val nextUrl = txt.nextChapterUrl
-                            if (!nextUrl.isNullOrEmpty()) {
-                                Button(
-                                    onClick = { loadChapter(nextUrl) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = AccentOrange)
-                                ) {
-                                    Text("Chương tiếp ›")
+                if (images.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Không có trang ảnh nào cho chapter này", color = Color.White)
+                    }
+                } else {
+                    when (readerSettings.mangaMode) {
+                        MangaReadingMode.WEBTOON -> {
+                            // Cuộn dọc liên tục
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                items(images) { imgUrl ->
+                                    AsyncImage(
+                                        model = imgUrl,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.FillWidth,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
                                 }
                             }
                         }
-                    }
-                }
-            } else {
-                // Manga Image Reader
-                val img = imageContent ?: return@Scaffold
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable { showControls = !showControls }
-                        .padding(innerPadding)
-                ) {
-                    items(img.imageUrls) { imgUrl ->
-                        AsyncImage(
-                            model = imgUrl,
-                            contentDescription = null,
-                            contentScale = ContentScale.FillWidth,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
+                        MangaReadingMode.LTR, MangaReadingMode.RTL -> {
+                            // Lật trang ngang Pager
+                            val isRtl = readerSettings.mangaMode == MangaReadingMode.RTL
+                            val pagerState = rememberPagerState(pageCount = { images.size })
 
-                    item {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 24.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            val prevUrl = img.prevChapterUrl
-                            if (!prevUrl.isNullOrEmpty()) {
-                                Button(
-                                    onClick = { loadChapter(prevUrl) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6))
-                                ) {
-                                    Text("‹ Chap trước")
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                HorizontalPager(
+                                    state = pagerState,
+                                    reverseLayout = isRtl,
+                                    modifier = Modifier.fillMaxSize()
+                                ) { pageIndex ->
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        AsyncImage(
+                                            model = images[pageIndex],
+                                            contentDescription = "Trang ${pageIndex + 1}",
+                                            contentScale = ContentScale.Fit,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
                                 }
-                            } else {
-                                Spacer(modifier = Modifier.width(1.dp))
-                            }
 
-                            val nextUrl = img.nextChapterUrl
-                            if (!nextUrl.isNullOrEmpty()) {
-                                Button(
-                                    onClick = { loadChapter(nextUrl) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6))
+                                // Page Badge Indicator
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .padding(bottom = 16.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0x99000000))
+                                        .padding(horizontal = 12.dp, vertical = 4.dp)
                                 ) {
-                                    Text("Chap tiếp ›")
+                                    Text(
+                                        text = "${pagerState.currentPage + 1} / ${images.size}",
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
