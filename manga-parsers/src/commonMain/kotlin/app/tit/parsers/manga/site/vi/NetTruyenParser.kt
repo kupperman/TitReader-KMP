@@ -5,6 +5,7 @@ import app.tit.content.core.MangaParser
 import app.tit.content.core.annotation.MangaSourceParser
 import app.tit.content.core.model.*
 import com.fleeksoft.ksoup.Ksoup
+import kotlinx.serialization.json.*
 
 @MangaSourceParser("NETTRUYEN", "NetTruyen", "vi")
 class NetTruyenParser(
@@ -132,26 +133,16 @@ class NetTruyenParser(
             ContentStatus.ONGOING
         }
 
-        val chapters = mutableListOf<Chapter>()
-        var order = 1
-        doc.select(".list-chapter li.row a, #nt_listchapter a").forEach { a ->
-            val chTitle = a.text().trim()
-            val rawHref = a.attr("href").trim()
-            val chUrl = if (rawHref.startsWith("http")) rawHref else "$domain$rawHref"
-
-            if (chTitle.isNotEmpty() && chUrl.isNotEmpty() && chapters.none { it.url == chUrl }) {
-                chapters.add(
-                    Chapter(
-                        id = chUrl,
-                        title = chTitle,
-                        url = chUrl,
-                        order = order++,
-                        sourceId = id
-                    )
-                )
-            }
-        }
-
+        val fallbackChapters = parseNetTruyenHtmlChapters(doc, domain, id)
+        val slug = Regex("gOpts\\.comicSlug\\s*=\\s*['\"]([^'\"]+)")
+            .find(doc.html())
+            ?.groupValues
+            ?.get(1)
+            ?: mangaUrl.substringAfter("/truyen-tranh/").substringBefore('/').substringBefore('?')
+        val chapters = runCatching {
+            val json = context.getHtml("$domain/Comic/Services/ComicService.asmx/ChapterList?slug=$slug")
+            parseNetTruyenChapterJson(json, slug, domain, id).ifEmpty { fallbackChapters }
+        }.getOrElse { fallbackChapters }
         return ContentDetails(
             content = Content(
                 id = mangaUrl,
@@ -195,3 +186,44 @@ class NetTruyenParser(
         )
     }
 }
+internal fun parseNetTruyenHtmlChapters(
+    doc: com.fleeksoft.ksoup.nodes.Document,
+    base: String,
+    sourceId: String
+): List<Chapter> = doc.select("#chapter_list li.row .chapter > a")
+    .mapNotNull { link ->
+        val title = link.text().trim()
+        val rawHref = link.attr("href").trim()
+        val number = Regex("(?:chapter|chương|chap)\\s*[-_:]?\\s*(\\d+(?:[.,]\\d+)?)", RegexOption.IGNORE_CASE)
+            .find(title)?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull()
+        if (title.isBlank() || rawHref.isBlank() || number == null) null
+        else Triple(title, if (rawHref.startsWith("http")) rawHref else base.trimEnd('/') + "/" + rawHref.trimStart('/'), number)
+    }
+    .distinctBy { it.second }
+    .sortedBy { it.third }
+    .mapIndexed { index, item -> Chapter(item.second, item.first, item.second, index + 1, sourceId) }
+
+internal fun parseNetTruyenChapterJson(
+    json: String,
+    slug: String,
+    base: String,
+    sourceId: String
+): List<Chapter> {
+    data class Parsed(val title: String, val url: String, val number: Double)
+    val root = Json.parseToJsonElement(json).jsonObject
+    return root["data"]?.jsonArray.orEmpty()
+        .mapNotNull { element ->
+            val item = element.jsonObject
+            val number = item["chapter_num"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+            val title = item["chapter_name"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+                .ifBlank { "Chapter ${formatNetTruyenChapterNumber(number)}" }
+            val numberPath = formatNetTruyenChapterNumber(number)
+            Parsed(title, "${base.trimEnd('/')}/truyen-tranh/$slug/chuong-$numberPath", number)
+        }
+        .distinctBy { it.url }
+        .sortedBy { it.number }
+        .mapIndexed { index, parsed -> Chapter(parsed.url, parsed.title, parsed.url, index + 1, sourceId) }
+}
+
+private fun formatNetTruyenChapterNumber(number: Double): String =
+    if (number % 1.0 == 0.0) number.toLong().toString() else number.toString().trimEnd('0').trimEnd('.')

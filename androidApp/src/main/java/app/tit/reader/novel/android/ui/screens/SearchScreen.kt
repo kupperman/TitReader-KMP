@@ -33,15 +33,17 @@ import app.tit.reader.novel.android.ui.theme.*
 import app.tit.shared.model.SourceSearchResult
 import app.tit.shared.model.SourceStatus
 import app.tit.shared.repository.AggregatorRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @Composable
 fun SearchScreen(
     initialType: ContentType,
+    repository: AggregatorRepository,
     onContentClick: (Content) -> Unit,
     onBackClick: () -> Unit
 ) {
-    val repository = remember { AggregatorRepository() }
     val scope = rememberCoroutineScope()
 
     var activeType by remember { mutableStateOf(initialType) }
@@ -50,33 +52,57 @@ fun SearchScreen(
     var isSearching by remember { mutableStateOf(false) }
     var hasSearched by remember { mutableStateOf(false) }
     var selectedSourceId by remember { mutableStateOf<String?>(null) } // null = All sources
+    var searchPage by remember { mutableIntStateOf(1) }
+    var currentSearchJob by remember { mutableStateOf<Job?>(null) }
+    var searchGeneration by remember { mutableIntStateOf(0) }
 
     val sources = remember(activeType) { repository.sourceManager.getSources(activeType) }
     val sourceStatusMap = remember { mutableStateMapOf<String, SourceStatus>() }
 
-    fun doSearch() {
+    fun cancelCurrentSearch() {
+        currentSearchJob?.cancel()
+        currentSearchJob = null
+        searchGeneration += 1
+        isSearching = false
+    }
+
+    fun doSearch(pageToLoad: Int = 1, append: Boolean = false) {
         val q = searchQuery.trim()
         if (q.isEmpty()) return
+
+        currentSearchJob?.cancel()
+        searchGeneration += 1
+        val generation = searchGeneration
+        val typeForSearch = activeType
+
         isSearching = true
         hasSearched = true
-        results = emptyList()
-        selectedSourceId = null
-        sourceStatusMap.clear()
+        if (!append) results = emptyList()
+        if (!append) selectedSourceId = null
+        if (!append) sourceStatusMap.clear()
         sources.forEach { sourceStatusMap[it.id] = SourceStatus.LOADING }
 
-        scope.launch {
+        currentSearchJob = scope.launch {
             try {
-                val flow = if (activeType == ContentType.NOVEL) {
-                    repository.searchNovelsStreaming(q)
+                val flow = if (typeForSearch == ContentType.NOVEL) {
+                    repository.searchNovelsStreaming(q, page = pageToLoad)
                 } else {
-                    repository.searchMangaStreaming(q)
+                    repository.searchMangaStreaming(q, page = pageToLoad)
                 }
 
                 flow.collect { event ->
+                    if (generation != searchGeneration) return@collect
                     when (event) {
                         is SourceSearchResult.Success -> {
-                            sourceStatusMap[event.source.id] = SourceStatus.DONE
-                            results = results + event.items
+                            sourceStatusMap[event.source.id] = if (event.items.isEmpty()) {
+                                SourceStatus.NO_RESULTS
+                            } else {
+                                SourceStatus.DONE
+                            }
+                            results = (results + event.items).distinctBy { "${it.sourceId}|${it.url}" }
+                        }
+                        is SourceSearchResult.NoRelevantResults -> {
+                            sourceStatusMap[event.source.id] = SourceStatus.NO_RELEVANT
                         }
                         is SourceSearchResult.TimedOut -> {
                             sourceStatusMap[event.source.id] = SourceStatus.TIMED_OUT
@@ -89,14 +115,19 @@ fun SearchScreen(
                         }
                     }
                 }
-            } catch (e: Exception) {
-                // Ignore general errors, per-source status is captured
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Per-source failures are represented by SourceSearchResult.
             } finally {
-                isSearching = false
+                if (generation == searchGeneration) {
+                    searchPage = pageToLoad
+                    isSearching = false
+                    currentSearchJob = null
+                }
             }
         }
     }
-
     val displayResults = remember(results, selectedSourceId) {
         if (selectedSourceId == null) results else results.filter { it.sourceId == selectedSourceId }
     }
@@ -132,7 +163,7 @@ fun SearchScreen(
                         keyboardActions = KeyboardActions(onSearch = { doSearch() }),
                         trailingIcon = {
                             if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = ""; results = emptyList(); hasSearched = false; sourceStatusMap.clear(); selectedSourceId = null }) {
+                                IconButton(onClick = { cancelCurrentSearch(); searchQuery = ""; results = emptyList(); hasSearched = false; sourceStatusMap.clear(); selectedSourceId = null }) {
                                     Icon(Icons.Default.Clear, contentDescription = "Xóa")
                                 }
                             }
@@ -295,6 +326,8 @@ fun SourceChip(
     val backgroundColor = when {
         selected -> themeColor
         status == SourceStatus.DONE -> Color(0xFFE6F4EA)
+        status == SourceStatus.NO_RESULTS -> Color(0xFFF3F4F6)
+        status == SourceStatus.NO_RELEVANT -> Color(0xFFFFF4E5)
         status == SourceStatus.TIMED_OUT -> Color(0xFFFEF3C7)
         status == SourceStatus.FAILED -> Color(0xFFFEE2E2)
         status == SourceStatus.SKIPPED -> Color(0xFFF3F4F6)
@@ -304,6 +337,8 @@ fun SourceChip(
     val contentColor = when {
         selected -> Color.White
         status == SourceStatus.DONE -> Color(0xFF137333)
+        status == SourceStatus.NO_RESULTS -> Color(0xFF6B7280)
+        status == SourceStatus.NO_RELEVANT -> Color(0xFF9A5B00)
         status == SourceStatus.TIMED_OUT -> Color(0xFF92400E)
         status == SourceStatus.FAILED -> Color(0xFFB91C1C)
         status == SourceStatus.SKIPPED -> Color(0xFF6B7280)
@@ -345,6 +380,8 @@ private fun StatusIndicator(status: SourceStatus, tint: Color) {
             )
         }
         SourceStatus.DONE -> Text("✓", color = tint, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        SourceStatus.NO_RESULTS -> Text("∅", color = tint, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        SourceStatus.NO_RELEVANT -> Text("lọc", color = tint, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         SourceStatus.TIMED_OUT -> Text("⏱", color = Color(0xFFE57373), fontSize = 12.sp)
         SourceStatus.FAILED -> Text("⚠️", color = Color(0xFFE57373), fontSize = 12.sp)
         SourceStatus.SKIPPED -> Text("💤", color = Color(0xFF9CA3AF), fontSize = 12.sp)

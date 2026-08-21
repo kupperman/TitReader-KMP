@@ -7,29 +7,19 @@ import app.tit.content.core.model.ContentType
 import app.tit.content.core.model.SourceInfo
 import app.tit.parsers.manga.site.vi.FoxTruyenParser
 import app.tit.parsers.manga.site.vi.NetTruyenParser
-import app.tit.parsers.manga.site.vi.OTruyenParser
 import app.tit.parsers.manga.site.vi.TruyenQQParser
 
 object MangaSourceRegistry : SourceCatalog<MangaParser> {
     override val type: ContentType = ContentType.MANGA
 
     private val sources: Map<String, (LoaderContext) -> MangaParser> = mapOf(
-        "OTRUYEN" to { ctx -> OTruyenParser(ctx) },
         "FOXTRUYEN" to { ctx -> FoxTruyenParser(ctx) },
         "TRUYENQQ" to { ctx -> TruyenQQParser(ctx) },
         "NETTRUYEN" to { ctx -> NetTruyenParser(ctx) }
     )
 
     private val sourceInfoList: List<SourceInfo> = listOf(
-        SourceInfo(
-            id = "OTRUYEN",
-            name = "Ổ Truyện",
-            lang = "vi",
-            version = 1,
-            type = ContentType.MANGA,
-            domain = "https://otruyenapi.com"
-        ),
-        SourceInfo(
+SourceInfo(
             id = "FOXTRUYEN",
             name = "FoxTruyen",
             lang = "vi",
@@ -60,8 +50,7 @@ object MangaSourceRegistry : SourceCatalog<MangaParser> {
     override fun createParser(id: String, ctx: LoaderContext): MangaParser {
         val upperId = id.uppercase()
         val factory = sources[upperId]
-            ?: if (id.contains("otruyen", ignoreCase = true)) sources["OTRUYEN"]
-            else if (id.contains("foxtruyen", ignoreCase = true)) sources["FOXTRUYEN"]
+            ?: if (id.contains("foxtruyen", ignoreCase = true)) sources["FOXTRUYEN"]
             else if (id.contains("truyenqq", ignoreCase = true)) sources["TRUYENQQ"]
             else if (id.contains("nettruyen", ignoreCase = true)) sources["NETTRUYEN"]
             else sources.values.first()

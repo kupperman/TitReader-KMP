@@ -4,6 +4,7 @@ import app.tit.content.core.LoaderContext
 import app.tit.content.core.NovelParser
 import app.tit.content.core.annotation.NovelSourceParser
 import app.tit.content.core.model.*
+import io.ktor.http.encodeURLParameter
 
 @NovelSourceParser("TRUYENDICH", "Truyện Dịch", "vi")
 class TruyenDichParser(
@@ -70,7 +71,7 @@ class TruyenDichParser(
     }
 
     override suspend fun search(query: String, page: Int): List<Content> {
-        val path = if (page == 1) "/tim-kiem?q=$query" else "/tim-kiem?q=$query&page=$page"
+        val path = if (page == 1) "/tim-kiem?q=${query.encodeURLParameter()}" else "/tim-kiem?q=${query.encodeURLParameter()}&page=$page"
         val (doc, base) = context.parseHtmlRace(mirrors, path)
         val list = mutableListOf<Content>()
 
@@ -116,7 +117,7 @@ class TruyenDichParser(
     }
 
     override suspend fun getDetails(novelUrl: String): ContentDetails {
-        val doc = context.parseHtml(novelUrl)
+        val (doc, base) = context.parseHtmlWithMirrors(novelUrl, mirrors)
         val title = doc.selectFirst("h1.title, h1[itemprop='name'], h1")?.text()?.trim() ?: "Không có tiêu đề"
 
         val cover = doc.selectFirst("img[itemprop='image'], .book img, .books img, img[src*='story-thumb'], .thumb img, .desc-story img")?.let { img ->
@@ -138,30 +139,8 @@ class TruyenDichParser(
             ContentStatus.ONGOING
         }
 
-        val chapters = mutableListOf<Chapter>()
-        var order = 1
-        // Chỉ lấy các thẻ a trong block danh sách chương (bỏ qua widget top các chương mới nhất)
-        val chapterLinks = doc.select("#list-chapter ul.list-chapter li a, .list-chapter li a")
-        val linksToUse = if (chapterLinks.isNotEmpty()) chapterLinks else doc.select("a[href*='chuong-']")
-
-        linksToUse.forEach { a ->
-            val chTitle = a.text().trim()
-            val rawHref = a.attr("href").trim()
-            val chUrl = if (rawHref.startsWith("http")) rawHref else "$domain$rawHref"
-
-            if (chTitle.isNotEmpty() && chUrl.isNotEmpty() && chapters.none { it.url == chUrl }) {
-                chapters.add(
-                    Chapter(
-                        id = chUrl,
-                        title = chTitle,
-                        url = chUrl,
-                        order = order++,
-                        sourceId = id
-                    )
-                )
-            }
-        }
-
+        val chapterPageCount = findChapterPageCount(doc)
+        val sortedChapters = parsePagedNovelChapters(doc, base, id)
         return ContentDetails(
             content = Content(
                 id = novelUrl,
@@ -169,48 +148,64 @@ class TruyenDichParser(
                 url = novelUrl,
                 coverUrl = cover,
                 author = author,
-                latestChapter = chapters.lastOrNull()?.title,
+                latestChapter = sortedChapters.lastOrNull()?.title,
                 type = ContentType.NOVEL,
                 sourceId = id,
                 sourceName = name
             ),
             description = desc,
             status = status,
-            chapters = chapters
+            chapters = sortedChapters,
+            chapterPageCount = chapterPageCount
         )
     }
 
+    override suspend fun getChapterPage(novelUrl: String, page: Int): List<Chapter> {
+        require(page >= 1) { "Trang chương phải lớn hơn 0" }
+        val pageUrl = chapterPageUrl(novelUrl, page)
+        val (doc, base) = context.parseHtmlDirectThenMirrors(pageUrl, mirrors)
+        return parsePagedNovelChapters(doc, base, id)
+    }
     override suspend fun getChapterContent(chapterUrl: String): ChapterContent.Text {
-        val doc = context.parseHtml(chapterUrl)
-        val title = doc.selectFirst("a.chapter-title, .chapter-title, .chapter-c h2, h2, h1")?.attr("title")?.takeIf { it.isNotEmpty() }
-            ?: doc.selectFirst("a.chapter-title, .chapter-title, .chapter-c h2, h2, h1")?.text()?.trim()
-            ?: "Nội dung chương"
+        val (doc, base) = context.parseHtmlDirectThenMirrors(chapterUrl, mirrors)
+        val title = selectRealChapterTitle(doc)
 
-        val contentEl = doc.selectFirst("#chapter-c, .chapter-c, .chapter-content, #content")
+        val contentCandidates = listOf("#chapter-c", ".chapter-c", ".chapter-content", "[itemprop='articleBody']", "#content")
+            .mapNotNull { selector -> doc.selectFirst(selector) }
+        val contentEl = contentCandidates.firstOrNull { it.text().trim().length >= 100 }
+            ?: contentCandidates.firstOrNull()
             ?: error("Không tìm thấy nội dung chương")
 
-        // Loại bỏ quảng cáo
-        contentEl.select("script, style, .ads, .ad, div[class*='ads']").remove()
+        contentEl.select("script, style, .ads, .ad, .ads-holder, div[id*='ads'], div[class*='ads']").remove()
 
-        val paragraphs = contentEl.select("p").map { it.text().trim() }.filter { it.isNotEmpty() }
-        val text = if (paragraphs.isNotEmpty()) {
-            paragraphs.joinToString("\n\n")
-        } else {
-            contentEl.html()
-                .replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
-                .replace(Regex("<p[^>]*>", RegexOption.IGNORE_CASE), "\n\n")
-                .replace(Regex("</p>", RegexOption.IGNORE_CASE), "")
-                .replace(Regex("<[^>]+>"), "")
-                .trim()
-        }
+        val selectedParagraphs = contentEl.select("p")
+            .map { it.text().trim() }
+            .filter { it.isNotEmpty() && !it.contains("quảng cáo", ignoreCase = true) }
+        val selectedText = selectedParagraphs.joinToString("\n\n")
+        val fallbackText = contentEl.html()
+            .replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
+            .replace(Regex("<p[^>]*>", RegexOption.IGNORE_CASE), "\n\n")
+            .replace(Regex("</p>", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("<[^>]+>"), "")
+            .trim()
+        val text = selectedText.takeIf { it.length >= 200 } ?: fallbackText
+        val paragraphs = if (selectedText.length >= 200) selectedParagraphs else text
+            .split(Regex("\\n\\s*\\n|\\n"))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
 
-        val prevHref = doc.selectFirst("a#prev_chap, a.prev-chap, a.btn-prev")?.attr("href")
+        val prevRaw = (doc.getElementById("prev_chap")
+            ?: doc.getElementsByClass("prev-chap").firstOrNull()
+            ?: doc.getElementsByClass("btn-prev").firstOrNull())
+            ?.attr("href")
             ?.takeIf { it.isNotEmpty() && it != "#" && !it.startsWith("javascript") }
-            ?.let { if (it.startsWith("http")) it else "$domain$it" }
-
-        val nextHref = doc.selectFirst("a#next_chap, a.next-chap, a.btn-next")?.attr("href")
+        val nextRaw = (doc.getElementById("next_chap")
+            ?: doc.getElementsByClass("next-chap").firstOrNull()
+            ?: doc.getElementsByClass("btn-next").firstOrNull())
+            ?.attr("href")
             ?.takeIf { it.isNotEmpty() && it != "#" && !it.startsWith("javascript") }
-            ?.let { if (it.startsWith("http")) it else "$domain$it" }
+        val prevHref = prevRaw?.let { resolveNovelUrl(base, it) }
+        val nextHref = nextRaw?.let { resolveNovelUrl(base, it) }
 
         return ChapterContent.Text(
             title = title,
@@ -218,6 +213,7 @@ class TruyenDichParser(
             text = text,
             prevChapterUrl = prevHref,
             nextChapterUrl = nextHref,
+            paragraphs = paragraphs,
             sourceId = id
         )
     }

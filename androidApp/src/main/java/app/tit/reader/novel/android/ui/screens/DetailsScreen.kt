@@ -1,4 +1,4 @@
-﻿package app.tit.reader.novel.android.ui.screens
+package app.tit.reader.novel.android.ui.screens
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -49,6 +49,9 @@ fun DetailsScreen(
     var isDescExpanded by remember { mutableStateOf(false) }
     var isAscending by remember { mutableStateOf(true) }
     var chapterSearchQuery by remember { mutableStateOf("") }
+    var loadedChapterPage by remember(content.url) { mutableIntStateOf(1) }
+    var isLoadingMoreChapters by remember { mutableStateOf(false) }
+    var chapterPageError by remember { mutableStateOf<String?>(null) }
 
     fun loadDetails() {
         isLoading = true
@@ -64,6 +67,8 @@ fun DetailsScreen(
                 }
                 if (fetched != null) {
                     details = fetched
+                    loadedChapterPage = 1
+                    chapterPageError = null
                 } else {
                     errorMessage = "Quá thời gian phản hồi (Timeout). Vui lòng thử lại sau."
                 }
@@ -75,6 +80,30 @@ fun DetailsScreen(
         }
     }
 
+    fun loadNextChapterPage() {
+        val current = details ?: return
+        if (content.type != ContentType.NOVEL || isLoadingMoreChapters || loadedChapterPage >= current.chapterPageCount) return
+        val nextPage = loadedChapterPage + 1
+        isLoadingMoreChapters = true
+        chapterPageError = null
+        scope.launch {
+            try {
+                val next = kotlinx.coroutines.withTimeout(12_000L) {
+                    repository.getNovelChapterPage(content.sourceId, content.url, nextPage)
+                }
+                if (next.isEmpty()) error("Trang $nextPage không có chương")
+                val merged = (current.chapters + next)
+                    .distinctBy { it.url }
+                    .sortedWith(compareBy<Chapter> { it.order }.thenBy { it.title })
+                details = current.copy(chapters = merged)
+                loadedChapterPage = nextPage
+            } catch (e: Exception) {
+                chapterPageError = e.message ?: "Không tải được trang chương $nextPage"
+            } finally {
+                isLoadingMoreChapters = false
+            }
+        }
+    }
     LaunchedEffect(content.url) {
         loadDetails()
         isFavorite = repository.isBookFavorite(content.url)
@@ -251,7 +280,7 @@ fun DetailsScreen(
 
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "Tổng: ${d.chapters.size} chương",
+                                        text = if (d.chapterPageCount > 1) "Đã tải: ${d.chapters.size} chương • trang $loadedChapterPage/${d.chapterPageCount}" else "Tổng: ${d.chapters.size} chương",
                                         fontSize = 12.sp,
                                         color = MutedGray
                                     )
@@ -432,6 +461,36 @@ fun DetailsScreen(
                                     tint = MutedGray,
                                     modifier = Modifier.size(16.dp)
                                 )
+                            }
+                        }
+                    }
+                }
+
+                if (content.type == ContentType.NOVEL && loadedChapterPage < d.chapterPageCount) {
+                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Button(
+                                onClick = { loadNextChapterPage() },
+                                enabled = !isLoadingMoreChapters,
+                                colors = ButtonDefaults.buttonColors(containerColor = themeColor),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                if (isLoadingMoreChapters) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Color.White
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text("Tải thêm chương (${loadedChapterPage}/${d.chapterPageCount})")
+                            }
+                            chapterPageError?.let {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(it, color = Color.Red, fontSize = 12.sp)
                             }
                         }
                     }

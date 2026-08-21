@@ -32,6 +32,10 @@ kotlin {
             implementation(libs.ktor.client.core)
         }
         
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
+
         androidMain.dependencies {
             implementation(libs.coroutines.android)
         }

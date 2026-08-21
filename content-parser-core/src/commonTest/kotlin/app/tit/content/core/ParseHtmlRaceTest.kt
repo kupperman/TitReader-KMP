@@ -35,6 +35,7 @@ class ParseHtmlRaceTest {
     private sealed class MockBehavior(val delayMs: Long) {
         class Success(delayMs: Long) : MockBehavior(delayMs)
         class Cloudflare(delayMs: Long) : MockBehavior(delayMs)
+        class Custom(val html: String, delayMs: Long) : MockBehavior(delayMs)
         class HttpError(delayMs: Long) : MockBehavior(delayMs)
         object NeverResponds : MockBehavior(0L)
     }
@@ -60,6 +61,11 @@ class ParseHtmlRaceTest {
                         )
                         is MockBehavior.Cloudflare -> respond(
                             content = cloudflareHtml,
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, "text/html"),
+                        )
+                        is MockBehavior.Custom -> respond(
+                            content = behavior.html,
                             status = HttpStatusCode.OK,
                             headers = headersOf(HttpHeaders.ContentType, "text/html"),
                         )
@@ -134,7 +140,24 @@ class ParseHtmlRaceTest {
     }
 
     @Test
-    fun tat_ca_mirror_deu_chet_phai_nem_loi_sau_8s() = runTest {
+    fun trang_hop_le_co_nhac_cloudflare_khong_bi_loai_nham() = runTest {
+        val legitimateHtml = "<html><body><div id=\"chapter-c\">" + "Nội dung chương thật. ".repeat(50) + "</div><footer>Protected by Cloudflare</footer></body></html>"
+        val context = contextWith(mapOf("https://truyenfull.live" to MockBehavior.Custom(legitimateHtml, 50)))
+        val (doc, mirror) = context.parseHtmlRace(mirrors = listOf("https://truyenfull.live"), path = "/chuong-1/")
+        assertEquals("https://truyenfull.live", mirror)
+        assertTrue(doc.selectFirst("#chapter-c")?.text()?.isNotBlank() == true)
+    }
+
+    @Test
+    fun trang_challenge_that_phai_van_bi_loai_dung() = runTest {
+        val challenge = "<html><title>Just a moment...</title><body>cf-chl-widget</body></html>"
+        val context = contextWith(mapOf("https://truyenfull.live" to MockBehavior.Custom(challenge, 50), "https://truyenfull.vn" to MockBehavior.Success(200)))
+        val (_, mirror) = context.parseHtmlRace(mirrors = listOf("https://truyenfull.live", "https://truyenfull.vn"), path = "/chuong-1/")
+        assertEquals("https://truyenfull.vn", mirror)
+    }
+
+    @Test
+    fun tat_ca_mirror_deu_chet_phai_nem_loi_sau_50s() = runTest {
         val context = contextWith(
             mapOf(
                 "https://truyenfull.live" to MockBehavior.NeverResponds,
@@ -151,8 +174,8 @@ class ParseHtmlRaceTest {
         }
         val elapsed = currentTime - start
 
-        // Xác nhận timeout đúng ~8000ms (virtual time), không bị treo vô hạn
-        assertTrue(elapsed in 7_900L..8_100L, "Thời gian timeout thực tế: ${elapsed}ms")
+        // Xác nhận timeout đúng ~50000ms (virtual time), không bị treo vô hạn
+        assertTrue(elapsed in 49_900L..50_100L, "Thời gian timeout thực tế: ${elapsed}ms")
     }
 
     @Test

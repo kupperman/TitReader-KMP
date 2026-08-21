@@ -57,7 +57,7 @@ class AggregatorRepository(
                     }
                     else -> {
                         healthCache.markHealthy(sourceInfo.id)
-                        send(SourceSearchResult.Success(sourceInfo, result.getOrThrow()))
+                        sendFilteredSearchResult(sourceInfo, result.getOrThrow(), query)
                     }
                 }
             }
@@ -102,13 +102,25 @@ class AggregatorRepository(
                     }
                     else -> {
                         healthCache.markHealthy(sourceInfo.id)
-                        send(SourceSearchResult.Success(sourceInfo, result.getOrThrow()))
+                        sendFilteredSearchResult(sourceInfo, result.getOrThrow(), query)
                     }
                 }
             }
         }
     }
 
+    private suspend fun kotlinx.coroutines.channels.ProducerScope<SourceSearchResult>.sendFilteredSearchResult(
+        sourceInfo: SourceInfo,
+        rawItems: List<Content>,
+        query: String
+    ) {
+        val relevantItems = rawItems.filter { isRelevantSearchResult(it.title, query) }
+        if (rawItems.isNotEmpty() && relevantItems.isEmpty()) {
+            send(SourceSearchResult.NoRelevantResults(sourceInfo, rawItems.size))
+        } else {
+            send(SourceSearchResult.Success(sourceInfo, relevantItems))
+        }
+    }
     suspend fun getNovelCatalog(sourceId: String, page: Int, filter: ContentFilter.NovelFilter): List<Content> {
         return sourceManager.getNovelParser(sourceId).getList(page, filter)
     }
@@ -119,6 +131,10 @@ class AggregatorRepository(
 
     suspend fun getNovelDetails(sourceId: String, novelUrl: String): ContentDetails {
         return sourceManager.getNovelParser(sourceId).getDetails(novelUrl)
+    }
+
+    suspend fun getNovelChapterPage(sourceId: String, novelUrl: String, page: Int): List<Chapter> {
+        return sourceManager.getNovelParser(sourceId).getChapterPage(novelUrl, page)
     }
 
     suspend fun getMangaDetails(sourceId: String, mangaUrl: String): ContentDetails {

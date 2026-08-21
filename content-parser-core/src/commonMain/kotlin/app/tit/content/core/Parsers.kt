@@ -22,6 +22,7 @@ interface NovelParser : ContentParser {
     suspend fun getList(page: Int, filter: ContentFilter.NovelFilter): List<Content>
     suspend fun search(query: String, page: Int = 1): List<Content>
     suspend fun getDetails(novelUrl: String): ContentDetails
+    suspend fun getChapterPage(novelUrl: String, page: Int): List<app.tit.content.core.model.Chapter> = emptyList()
     suspend fun getChapterContent(chapterUrl: String): ChapterContent.Text
 }
 

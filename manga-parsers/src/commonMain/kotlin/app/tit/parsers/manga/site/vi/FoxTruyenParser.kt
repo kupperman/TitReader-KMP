@@ -186,13 +186,7 @@ class FoxTruyenParser(
         val doc = context.parseHtml(chapterUrl)
         val title = doc.selectFirst(".chapter-title, .heading-title, h1")?.text()?.trim() ?: "Nội dung chapter"
 
-        val imageUrls = mutableListOf<String>()
-        doc.select(".page-chapter img, .chapter_content img, .story-see-content img, .reading-detail img").forEach { img ->
-            val src = img.attr("data-original").ifEmpty { img.attr("data-src") }.ifEmpty { img.attr("src") }.trim()
-            if (src.isNotEmpty() && src.startsWith("http") && !imageUrls.contains(src)) {
-                imageUrls.add(src)
-            }
-        }
+        val imageUrls = parseFoxChapterImages(doc)
 
         val prevHref = doc.selectFirst("a.btn-prev, a.prev")?.attr("href")?.takeIf { it.isNotEmpty() }
         val nextHref = doc.selectFirst("a.btn-next, a.next")?.attr("href")?.takeIf { it.isNotEmpty() }
@@ -206,4 +200,16 @@ class FoxTruyenParser(
             sourceId = id
         )
     }
+}
+internal fun parseFoxChapterImages(doc: com.fleeksoft.ksoup.nodes.Document): List<String> {
+    val content = doc.selectFirst(".content_detail.content_detail_manga") ?: return emptyList()
+    val imageExtension = Regex("\\.(?:webp|jpe?g|png)(?:[?#].*)?$", RegexOption.IGNORE_CASE)
+    return content.select("img")
+        .mapNotNull { image ->
+            image.attr("src").ifBlank { image.attr("data-src") }.ifBlank { image.attr("data-original") }
+                .trim()
+                .takeIf { it.startsWith("https://hinhgg.com/") && imageExtension.containsMatchIn(it) }
+        }
+        .filterNot { it.contains("logo", ignoreCase = true) || it.contains("banner", ignoreCase = true) }
+        .distinct()
 }

@@ -27,6 +27,9 @@ kotlin {
             implementation(libs.coroutines.core)
             implementation(libs.ksoup)
         }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
     }
 }
 

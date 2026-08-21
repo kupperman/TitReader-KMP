@@ -4,6 +4,7 @@ import app.tit.content.core.LoaderContext
 import app.tit.content.core.MangaParser
 import app.tit.content.core.annotation.MangaSourceParser
 import app.tit.content.core.model.*
+import io.ktor.http.encodeURLQueryComponent
 
 @MangaSourceParser("TRUYENQQ", "TruyệnQQ", "vi")
 class TruyenQQParser(
@@ -80,8 +81,11 @@ class TruyenQQParser(
     }
 
     override suspend fun search(query: String, page: Int): List<Content> {
-        val path = if (page == 1) "/tim-kiem-nang-cao?q=$query" else "/tim-kiem-nang-cao/trang-$page?q=$query"
-        val (doc, base) = context.parseHtmlRace(mirrors, path)
+        // TruyenQQ only returns the full-search HTML reliably after issuing its session cookie.
+        context.getHtml("$domain/")
+        val path = truyenQQSearchPath(query, page)
+        val doc = context.parseHtml("$domain$path", "$domain/")
+        val base = domain
         val list = mutableListOf<Content>()
 
         doc.select(".list_grid > li, ul.grid > li, .story-item").forEach { el ->
@@ -161,26 +165,7 @@ class TruyenQQParser(
             ContentStatus.ONGOING
         }
 
-        val chapters = mutableListOf<Chapter>()
-        var order = 1
-        val chapElements = doc.select(".works-chapter-item a, .list_chapter a, .chapter_list a, a[href*='-chap-']")
-        chapElements.forEach { a ->
-            val chTitle = a.text().trim()
-            val rawHref = a.attr("href").trim()
-            val chUrl = if (rawHref.startsWith("http")) rawHref else "$domain$rawHref"
-
-            if (chTitle.isNotEmpty() && chUrl.isNotEmpty() && chapters.none { it.url == chUrl }) {
-                chapters.add(
-                    Chapter(
-                        id = chUrl,
-                        title = chTitle,
-                        url = chUrl,
-                        order = order++,
-                        sourceId = id
-                    )
-                )
-            }
-        }
+        val chapters = parseTruyenQQChapters(doc, domain, id)
 
         return ContentDetails(
             content = Content(
@@ -254,4 +239,48 @@ class TruyenQQParser(
             sourceId = id
         )
     }
+}
+internal fun truyenQQSearchPath(query: String, page: Int): String {
+    val encodedQuery = query.trim().encodeURLQueryComponent()
+    return if (page <= 1) {
+        "/tim-kiem?q=$encodedQuery"
+    } else {
+        "/tim-kiem/trang-$page?q=$encodedQuery"
+    }
+}
+internal fun parseTruyenQQChapters(
+    doc: com.fleeksoft.ksoup.nodes.Document,
+    base: String,
+    sourceId: String
+): List<Chapter> {
+    data class Parsed(val title: String, val url: String, val number: Double)
+
+    return doc.select(".list_chapter .works-chapter-item .name-chap > a")
+        .mapNotNull { link ->
+            val title = link.attr("title").ifBlank { link.text() }.trim()
+            val rawHref = link.attr("href").trim()
+            val text = title.lowercase()
+            val number = Regex("(?:chương|chapter|chap)\\s*[-_:]?\\s*(\\d+(?:[.,]\\d+)?)", RegexOption.IGNORE_CASE)
+                .find(title)
+                ?.groupValues
+                ?.get(1)
+                ?.replace(',', '.')
+                ?.toDoubleOrNull()
+            if (rawHref.isBlank() || number == null || text.contains("đọc từ đầu") || text.contains("mới nhất")) {
+                null
+            } else {
+                val url = when {
+                    rawHref.startsWith("http://") || rawHref.startsWith("https://") -> rawHref
+                    rawHref.startsWith("//") -> "https:$rawHref"
+                    rawHref.startsWith("/") -> base.trimEnd('/') + rawHref
+                    else -> base.trimEnd('/') + "/" + rawHref
+                }
+                Parsed(title, url, number)
+            }
+        }
+        .distinctBy { it.url }
+        .sortedBy { it.number }
+        .mapIndexed { index, parsed ->
+            Chapter(parsed.url, parsed.title, parsed.url, index + 1, sourceId)
+        }
 }

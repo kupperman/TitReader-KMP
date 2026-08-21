@@ -47,6 +47,7 @@ import app.tit.shared.model.ReaderSettings
 import app.tit.shared.model.ReadingHistoryItem
 import app.tit.shared.repository.AggregatorRepository
 import coil.compose.AsyncImage
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 
@@ -72,6 +73,7 @@ fun ReaderScreen(
     var readerSettings by remember { mutableStateOf(repository.getReaderSettings()) }
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(true) }
+    var chapterLoadJob by remember { mutableStateOf<Job?>(null) }
 
     val listState = rememberLazyListState()
 
@@ -109,26 +111,36 @@ fun ReaderScreen(
     }
 
     fun loadChapter(url: String) {
-        scope.launch {
+        chapterLoadJob?.cancel()
+        chapterLoadJob = scope.launch {
             isLoading = true
             errorMessage = null
             try {
                 val resolvedSourceId = chapter.sourceId.ifEmpty { contentMeta?.sourceId ?: "" }
-                kotlinx.coroutines.withTimeout(15_000L) {
+                val loaded = kotlinx.coroutines.withTimeoutOrNull(25_000L) {
                     if (type == ContentType.NOVEL) {
-                        val res = repository.getNovelChapterContent(resolvedSourceId, url)
-                        textContent = res
-                        currentChapterTitle = res.title
-                        currentChapterUrl = res.chapterUrl
+                        repository.getNovelChapterContent(resolvedSourceId, url) as ChapterContent
                     } else {
-                        val res = repository.getMangaChapterContent(resolvedSourceId, url)
-                        imageContent = res
-                        currentChapterTitle = res.title
-                        currentChapterUrl = res.chapterUrl
+                        repository.getMangaChapterContent(resolvedSourceId, url) as ChapterContent
+                    }
+                } ?: error("Quá thời gian tải chương (25 giây). Nguồn có thể đang chặn truy cập.")
+
+                when (loaded) {
+                    is ChapterContent.Text -> {
+                        if (loaded.text.isBlank() && loaded.paragraphs.isEmpty()) {
+                            error("Nguồn trả về chương rỗng hoặc selector nội dung không khớp")
+                        }
+                        textContent = loaded
+                        currentChapterTitle = loaded.title
+                        currentChapterUrl = loaded.chapterUrl
+                    }
+                    is ChapterContent.ImagePages -> {
+                        imageContent = loaded
+                        currentChapterTitle = loaded.title
+                        currentChapterUrl = loaded.chapterUrl
                     }
                 }
 
-                // Ghi nhận lịch sử đọc
                 if (contentMeta != null) {
                     repository.recordReadingHistory(
                         ReadingHistoryItem(
@@ -140,9 +152,13 @@ fun ReaderScreen(
                     )
                 }
 
+                isLoading = false
                 if (type == ContentType.NOVEL) {
+                    kotlinx.coroutines.delay(16L)
                     runCatching { listState.scrollToItem(0) }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 errorMessage = e.message ?: "Lỗi tải nội dung chương (Timeout hoặc mạng gián đoạn)"
             } finally {
@@ -151,8 +167,24 @@ fun ReaderScreen(
         }
     }
 
+    DisposableEffect(Unit) {
+        onDispose { chapterLoadJob?.cancel() }
+    }
+
     LaunchedEffect(chapter.url) {
         loadChapter(chapter.url)
+    }
+
+    // Independent UI watchdog: network/parser must never leave the reader spinning forever.
+    LaunchedEffect(isLoading, currentChapterUrl) {
+        if (isLoading) {
+            kotlinx.coroutines.delay(30_000L)
+            if (isLoading) {
+                chapterLoadJob?.cancel()
+                errorMessage = "Quá thời gian tải chương (30 giây). Nguồn không phản hồi hoặc đang chặn truy cập."
+                isLoading = false
+            }
+        }
     }
 
     val bgColor = when (readerSettings.novelTheme) {

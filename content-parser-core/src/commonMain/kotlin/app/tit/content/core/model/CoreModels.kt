@@ -38,7 +38,8 @@ data class ContentDetails(
     val description: String? = null,
     val status: ContentStatus = ContentStatus.UNKNOWN,
     val genres: List<String> = emptyList(),
-    val chapters: List<Chapter> = emptyList()
+    val chapters: List<Chapter> = emptyList(),
+    val chapterPageCount: Int = 1
 )
 
 @Serializable

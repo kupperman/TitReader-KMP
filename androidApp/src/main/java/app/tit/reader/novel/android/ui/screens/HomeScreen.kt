@@ -25,16 +25,17 @@ import app.tit.content.core.model.ContentFilter
 import app.tit.content.core.model.ContentType
 import app.tit.content.core.model.SortOrder
 import app.tit.reader.novel.android.ui.components.ContentCard
+import app.tit.reader.novel.android.ui.components.TopFilterRow
 import app.tit.reader.novel.android.ui.theme.*
 import app.tit.shared.repository.AggregatorRepository
 import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
+    repository: AggregatorRepository,
     onContentClick: (Content) -> Unit,
     onSearchClick: (ContentType) -> Unit
 ) {
-    val repository = remember { AggregatorRepository() }
     val scope = rememberCoroutineScope()
 
     var activeTab by remember { mutableStateOf(ContentType.NOVEL) }
@@ -93,89 +94,11 @@ fun HomeScreen(
 
     Scaffold(
         topBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(BgCream)
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Tít Reader 🐱",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = InkDark
-                    )
-
-                    IconButton(
-                        onClick = { onSearchClick(activeTab) },
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(SurfaceWhite)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Tìm kiếm",
-                            tint = InkDark
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Primary 2-tab switcher: Truyện chữ vs Truyện tranh
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFE8E0D5))
-                        .padding(4.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (activeTab == ContentType.NOVEL) AccentOrange else Color.Transparent)
-                            .clickable {
-                                activeTab = ContentType.NOVEL
-                                page = 1
-                            }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "📖 Truyện Chữ",
-                            color = if (activeTab == ContentType.NOVEL) Color.White else InkDark,
-                            fontWeight = if (activeTab == ContentType.NOVEL) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 14.sp
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (activeTab == ContentType.MANGA) Color(0xFF3B82F6) else Color.Transparent)
-                            .clickable {
-                                activeTab = ContentType.MANGA
-                                page = 1
-                            }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "🎨 Truyện Tranh",
-                            color = if (activeTab == ContentType.MANGA) Color.White else InkDark,
-                            fontWeight = if (activeTab == ContentType.MANGA) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-            }
+            TopFilterRow(
+                selectedType = activeTab,
+                onTypeSelect = { activeTab = it; page = 1 },
+                onSearchClick = { onSearchClick(activeTab) },
+            )
         },
         containerColor = BgCream
     ) { innerPadding ->

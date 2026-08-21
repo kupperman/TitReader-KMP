@@ -3,6 +3,7 @@ package app.tit.reader.novel.android
 import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
@@ -40,6 +41,9 @@ import app.tit.reader.novel.android.ui.screens.SettingsScreen
 import app.tit.reader.novel.android.ui.theme.*
 import app.tit.reader.novel.android.worker.ChapterUpdateWorker
 import app.tit.shared.repository.AggregatorRepository
+import app.tit.content.core.LoaderContext
+import app.tit.shared.manager.SourceManager
+import app.tit.reader.novel.android.network.CloudflareWebViewSolver
 import app.tit.shared.storage.LibraryStorage
 import coil.Coil
 import coil.ImageLoader
@@ -112,7 +116,11 @@ class MainActivity : ComponentActivity() {
         } catch (_: Exception) {}
 
         val storage = LibraryStorage(AndroidSharedPreferencesDriver(applicationContext))
-        val repository = AggregatorRepository(storage = storage)
+        val challengeSolver = CloudflareWebViewSolver(this)
+        val repository = AggregatorRepository(
+            sourceManager = SourceManager(context = LoaderContext(challengeSolver = challengeSolver)),
+            storage = storage
+        )
 
         setContent {
             TitReaderTheme {
@@ -134,6 +142,13 @@ class MainActivity : ComponentActivity() {
                     } else {
                         currentScreen = Screen.Home
                     }
+                }
+                // Observe the SnapshotStateList size during composition so the
+                // predictive/system back handler is enabled on the same frame
+                // navigateTo() pushes a destination.
+                val canNavigateBack = backStack.isNotEmpty()
+                BackHandler(enabled = canNavigateBack) {
+                    navigateBack()
                 }
 
                 val isTopLevel = currentScreen is Screen.Home || 
@@ -210,6 +225,7 @@ class MainActivity : ComponentActivity() {
                         when (val screen = currentScreen) {
                             is Screen.Home -> {
                                 HomeScreen(
+                                    repository = repository,
                                     onContentClick = { content -> navigateTo(Screen.Details(content)) },
                                     onSearchClick = { type -> navigateTo(Screen.Search(type)) }
                                 )
@@ -243,6 +259,7 @@ class MainActivity : ComponentActivity() {
                             is Screen.Search -> {
                                 SearchScreen(
                                     initialType = screen.type,
+                                    repository = repository,
                                     onContentClick = { content -> navigateTo(Screen.Details(content)) },
                                     onBackClick = { navigateBack() }
                                 )
